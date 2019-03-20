@@ -20,9 +20,34 @@
 # SOFTWARE.
 import argparse
 import logging
+import re
 import subprocess
 import time
-import sys
+
+
+RE_MODULE_NOT_AVAILABLE = re.compile("Module .*? not available")
+RE_CANT_OPEN = re.compile("Can't open (.*?):")
+
+
+class Error(Exception):
+    """Base class for exceptions in this module."""
+
+    pass
+
+
+class IocshModuleNotFoundError(Error):
+    """Exception raised when the required module is not found"""
+
+    pass
+
+
+class IocshProcessError(Error):
+    """Exception raised when the iocsh script exits with a non null return code
+
+    Only raised if no error was catched (and another exception raised)
+    """
+
+    pass
 
 
 def run_iocsh(name, delay, *args):
@@ -38,18 +63,27 @@ def run_iocsh(name, delay, *args):
     except subprocess.TimeoutExpired:
         proc.kill()
         outs, errs = proc.communicate()
+    outs = outs.decode("utf-8")
+    errs = errs.decode("utf-8")
     logging.info(
         "========== stdout ============================\n"
-        + outs.decode("utf-8")
+        + outs
         + "============================================================================"
     )
     logging.info(
         "========== stderr ============================\n"
-        + errs.decode("utf-8")
+        + errs
         + "============================================================================"
     )
     logging.debug("return code: {}".format(proc.returncode))
-    sys.exit(proc.returncode)
+    m = RE_MODULE_NOT_AVAILABLE.search(outs)
+    if m:
+        raise IocshModuleNotFoundError(m.group(0))
+    m = RE_CANT_OPEN.search(outs)
+    if m:
+        raise FileNotFoundError("No such file or directory: '{}'".format(m.group(1)))
+    if proc.returncode != 0:
+        raise IocshProcessError("Return code: {}".format(proc.returncode))
 
 
 def main():

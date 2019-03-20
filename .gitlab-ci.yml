@@ -18,26 +18,27 @@ stages:
 test-python27:
   <<: *runner_tags
   stage: test
-  image: python:2.7
+  image: registry.esss.lu.se/ics-docker/miniconda
   before_script:
+    - source /etc/profile.d/conda.sh
+    - conda create -n iocsh -y -c conda-test-virtual python=2.7 iocstats
+    - conda activate iocsh
+    - pip install pytest
     - pip install -e .
   script:
     - run-iocsh -h
-
-test-python36:
-  <<: *runner_tags
-  stage: test
-  image: python:3.6
-  before_script:
-    - pip install -e .
-  script:
-    - run-iocsh -h
+    - pytest -v tests
 
 test-python37:
   <<: *runner_tags
   stage: test
-  image: python:3.7
+  image: registry.esss.lu.se/ics-docker/miniconda
   before_script:
+    - source /etc/profile.d/conda.sh
+    - conda create -n iocsh -y -c conda-test-virtual python=3.7 iocstats
+    - conda activate iocsh
+    - pip install pytest
     - pip install -e .
   script:
     - run-iocsh -h
+    - pytest -v tests

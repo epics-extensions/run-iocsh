@@ -3,8 +3,8 @@ run-iocsh
 
 Wrapper to run iocsh.bash for test.
 
-run-iocsh is only meant to be used for testing! It runs `iocsh.bash` and sends the **exit** command after a delay.
-It exits with the status of the iocsh script.
+**run-iocsh is only meant to be used for testing!** It runs `iocsh.bash` and sends the **exit** command after a delay.
+It raises an exception if an error occurred.
 
 Quick start
 -----------
