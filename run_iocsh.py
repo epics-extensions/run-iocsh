@@ -53,7 +53,7 @@ class IocshProcessError(Error):
 def run_iocsh(name, delay, *args):
     """Run <name> iocsh script and send the exit command after <delay> seconds"""
     cmd = [name] + list(args)
-    logging.debug("Running: {}".format(cmd))
+    logging.debug(f"Running: {cmd}")
     proc = subprocess.Popen(
         cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE
     )
@@ -75,15 +75,15 @@ def run_iocsh(name, delay, *args):
         + errs
         + "============================================================================"
     )
-    logging.debug("return code: {}".format(proc.returncode))
+    logging.debug(f"return code: {proc.returncode}")
     m = RE_MODULE_NOT_AVAILABLE.search(outs)
     if m:
         raise IocshModuleNotFoundError(m.group(0))
     m = RE_CANT_OPEN.search(outs)
     if m:
-        raise FileNotFoundError("No such file or directory: '{}'".format(m.group(1)))
+        raise FileNotFoundError(f"No such file or directory: '{m.group(1)}'")
     if proc.returncode != 0:
-        raise IocshProcessError("Return code: {}".format(proc.returncode))
+        raise IocshProcessError(f"Return code: {proc.returncode}")
 
 
 def main():

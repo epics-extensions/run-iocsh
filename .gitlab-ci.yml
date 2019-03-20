@@ -15,13 +15,13 @@ stages:
   - test
   - release
 
-test-python27:
+test-python36:
   <<: *runner_tags
   stage: test
   image: registry.esss.lu.se/ics-docker/miniconda
   before_script:
     - source /etc/profile.d/conda.sh
-    - conda create -n iocsh -y -c conda-test-virtual python=2.7 iocstats
+    - conda create -n iocsh -y -c conda-test-virtual python=3.6 iocstats
     - conda activate iocsh
     - pip install pytest
     - pip install -e .
