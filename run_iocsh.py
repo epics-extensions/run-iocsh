@@ -60,9 +60,10 @@ def run_iocsh(name, delay, *args):
     time.sleep(delay)
     try:
         outs, errs = proc.communicate(input=b"exit\n", timeout=5)
-    except subprocess.TimeoutExpired:
+    except subprocess.TimeoutExpired as e:
         proc.kill()
-        outs, errs = proc.communicate()
+        outs = e.stdout
+        errs = e.stderr
     outs = outs.decode("utf-8")
     errs = errs.decode("utf-8")
     logging.info(
