@@ -21,7 +21,7 @@ test-python36:
   image: registry.esss.lu.se/ics-docker/miniconda
   before_script:
     - source /etc/profile.d/conda.sh
-    - conda create -n iocsh -y -c conda-test-virtual python=3.6 iocstats
+    - conda create -n iocsh -y -c conda-e3-virtual python=3.6 iocstats
     - conda activate iocsh
     - pip install pytest
     - pip install -e .
@@ -35,7 +35,7 @@ test-python37:
   image: registry.esss.lu.se/ics-docker/miniconda
   before_script:
     - source /etc/profile.d/conda.sh
-    - conda create -n iocsh -y -c conda-test-virtual python=3.7 iocstats
+    - conda create -n iocsh -y -c conda-e3-virtual python=3.7 iocstats
     - conda activate iocsh
     - pip install pytest
     - pip install -e .
