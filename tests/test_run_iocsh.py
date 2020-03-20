@@ -47,3 +47,18 @@ def test_run_iocsh_cmd_file_not_found():
     with pytest.raises(FileNotFoundError) as excinfo:
         run_iocsh("iocsh.bash", 1, "cmds/foo.cmd")
     assert "No such file or directory: 'cmds/foo.cmd'" == str(excinfo.value)
+
+
+def test_run_iocsh_autosave(caplog):
+    with caplog.at_level(logging.INFO):
+        run_iocsh("iocsh.bash", 2, "tests/cmds/test_autosave.cmd")
+    assert "Loaded autosave version" in caplog.text
+
+
+def test_run_iocsh_autosave_file_not_found(caplog):
+    with pytest.raises(FileNotFoundError) as excinfo:
+        run_iocsh("iocsh.bash", 2, "tests/cmds/test_autosave_file_not_found.cmd")
+    assert (
+        "No such file or directory: '/opt/conda/envs/test/modules/autosave/5.10.0/foo.iocsh'"
+        == str(excinfo.value)
+    )

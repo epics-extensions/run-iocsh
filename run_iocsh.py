@@ -26,7 +26,7 @@ import time
 
 
 RE_MODULE_NOT_AVAILABLE = re.compile("Module .*? not available")
-RE_CANT_OPEN = re.compile("Can't open (.*?):")
+RE_CANT_OPEN = re.compile(r"(save_restore:)?\s*Can't\s*open\s*(.*?):")
 
 
 class Error(Exception):
@@ -81,8 +81,8 @@ def run_iocsh(name, delay, *args):
     if m:
         raise IocshModuleNotFoundError(m.group(0))
     m = RE_CANT_OPEN.search(outs)
-    if m:
-        raise FileNotFoundError(f"No such file or directory: '{m.group(1)}'")
+    if m and m.group(1) != "save_restore:":
+        raise FileNotFoundError(f"No such file or directory: '{m.group(2)}'")
     if proc.returncode != 0:
         raise IocshProcessError(f"Return code: {proc.returncode}")
 
