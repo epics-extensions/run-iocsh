@@ -1,6 +1,6 @@
 import logging
 import pytest
-from run_iocsh import run_iocsh, IocshModuleNotFoundError
+from run_iocsh import run_iocsh, IocshModuleNotFoundError, IocshTimeoutExpired
 
 
 def test_run_iocsh_script_not_found():
@@ -62,3 +62,10 @@ def test_run_iocsh_autosave_file_not_found(caplog):
         "No such file or directory: '/opt/conda/envs/test/modules/autosave/5.10.0/foo.iocsh'"
         == str(excinfo.value)
     )
+
+
+@pytest.mark.parametrize("name", ("iocsh-timeout.bash", "iocsh-stdin-closed.bash"))
+def test_run_iocsh_timeout_expired(name):
+    with pytest.raises(IocshTimeoutExpired) as excinfo:
+        run_iocsh(f"./tests/scripts/{name}", 0.1, timeout=0.5)
+    assert "Failed to send exit to the IOC" == str(excinfo.value)

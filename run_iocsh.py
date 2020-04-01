@@ -50,7 +50,13 @@ class IocshProcessError(Error):
     pass
 
 
-def run_iocsh(name, delay, *args):
+class IocshTimeoutExpired(Error):
+    """Exception raised when a timeout occurred trying to send exit to the softIOC"""
+
+    pass
+
+
+def run_iocsh(name, delay, *args, timeout=5):
     """Run <name> iocsh script and send the exit command after <delay> seconds"""
     cmd = [name] + list(args)
     logging.debug(f"Running: {cmd}")
@@ -59,11 +65,14 @@ def run_iocsh(name, delay, *args):
     )
     time.sleep(delay)
     try:
-        outs, errs = proc.communicate(input=b"exit\n", timeout=5)
+        outs, errs = proc.communicate(input=b"exit\n", timeout=timeout)
     except subprocess.TimeoutExpired:
         proc.kill()
-        outs = proc.stdout.read()
-        errs = proc.stderr.read()
+        # Trying to run "outs, errs = proc.communicate()" can raise:
+        # ValueError: Invalid file object: <_io.BufferedReader name=7>
+        # when stdin is already closed.
+        # In case of timeout, we don't care and just raise an exception
+        raise IocshTimeoutExpired("Failed to send exit to the IOC")
     outs = outs.decode("utf-8")
     errs = errs.decode("utf-8")
     logging.info(
@@ -106,8 +115,14 @@ def main():
         type=int,
         default=5,
     )
+    parser.add_argument(
+        "--timeout",
+        help="time (in seconds) to wait when sending the exit command [default: 5]",
+        type=int,
+        default=5,
+    )
     args, remaining = parser.parse_known_args()
-    run_iocsh(args.name, args.delay, *remaining)
+    run_iocsh(args.name, args.delay, *remaining, timeout=args.timeout)
 
 
 if __name__ == "__main__":
