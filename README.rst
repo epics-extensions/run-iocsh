@@ -1,6 +1,14 @@
 run-iocsh
 =========
 
+.. image:: https://img.shields.io/badge/code%20style-black-000000.svg
+    :target: https://github.com/ambv/black
+
+.. image:: https://gitlab.esss.lu.se/ics-infrastructure/run-iocsh/badges/master/pipeline.svg
+
+.. image:: https://gitlab.esss.lu.se/ics-infrastructure/run-iocsh/badges/master/coverage.svg
+
+
 Wrapper to run iocsh.bash for test.
 
 **run-iocsh is only meant to be used for testing!** It runs `iocsh.bash` and sends the **exit** command after a delay.
