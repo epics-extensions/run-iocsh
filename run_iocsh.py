@@ -97,7 +97,12 @@ def run_iocsh(name, delay, *args, timeout=5):
         raise IocshProcessError(f"Return code: {proc.returncode}")
 
 
-@click.command(context_settings={"ignore_unknown_options": True})
+@click.command(
+    context_settings={
+        "ignore_unknown_options": True,
+        "help_option_names": ["-h", "--help"],
+    }
+)
 @click.option(
     "--name",
     default="iocsh.bash",
@@ -117,7 +122,7 @@ def run_iocsh(name, delay, *args, timeout=5):
 )
 @click.argument("remaining", nargs=-1)
 def main(name, delay, timeout, remaining):
-    """Run iocsch.bash and send the exit command after x seconds"""
+    """Run iocsch.bash and send the exit command after <delay> seconds"""
     logging.basicConfig(
         format="%(asctime)s %(levelname)s: %(message)s ", level=logging.DEBUG
     )

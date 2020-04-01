@@ -22,17 +22,20 @@ Quick start
 ::
 
     $ run-iocsh -h
-    usage: run-iocsh [-h] [--name NAME] [--delay DELAY] [--timeout TIMEOUT]
+    Usage: run-iocsh [OPTIONS] [REMAINING]...
 
-    Run iocsch.bash and send the exit command after <delay> seconds
+    Run iocsch.bash and send the exit command after x seconds
 
-    optional arguments:
-      -h, --help     show this help message and exit
-      --name NAME    name of the iocsh script [default: iocsh.bash]
-      --delay DELAY  time (in seconds) to wait before to send the exit command
-                     [default: 5]
-      --timeout TIMEOUT  time (in seconds) to wait when sending the exit command
-                     [default: 5]
+    Options:
+      --name TEXT      name of the iocsh script [default: iocsh.bash]
+      --delay FLOAT    time (in seconds) to wait before to send the exit command
+                       [default: 5]
+
+      --timeout FLOAT  time (in seconds) to wait when sending the exit command
+                       [default: 5]
+
+      -h, --help       Show this message and exit.
+
 
 All other arguments are passed to the iocsh script::
 
