@@ -37,8 +37,8 @@ test-python37:
     - source /etc/profile.d/conda.sh
     - conda create -n test -y -c conda-e3-virtual python=3.7 iocstats=3.1.16 autosave=5.10.0
     - conda activate test
-    - pip install pytest
+    - pip install pytest pytest-cov
     - pip install -e .
   script:
     - run-iocsh -h
-    - pytest -v tests
+    - pytest -v --cov=run_iocsh tests
