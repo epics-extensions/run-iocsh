@@ -18,10 +18,11 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-import argparse
+import click
 import logging
 import re
 import subprocess
+import sys
 import time
 
 
@@ -96,33 +97,35 @@ def run_iocsh(name, delay, *args, timeout=5):
         raise IocshProcessError(f"Return code: {proc.returncode}")
 
 
-def main():
-    """Entry point"""
+@click.command(context_settings={"ignore_unknown_options": True})
+@click.option(
+    "--name",
+    default="iocsh.bash",
+    help="name of the iocsh script [default: iocsh.bash]",
+)
+@click.option(
+    "--delay",
+    help="time (in seconds) to wait before to send the exit command [default: 5]",
+    type=float,
+    default=5,
+)
+@click.option(
+    "--timeout",
+    help="time (in seconds) to wait when sending the exit command [default: 5]",
+    type=float,
+    default=5,
+)
+@click.argument("remaining", nargs=-1)
+def main(name, delay, timeout, remaining):
+    """Run iocsch.bash and send the exit command after x seconds"""
     logging.basicConfig(
         format="%(asctime)s %(levelname)s: %(message)s ", level=logging.DEBUG
     )
-    parser = argparse.ArgumentParser(
-        description="Run iocsch.bash and send the exit command after x seconds"
-    )
-    parser.add_argument(
-        "--name",
-        help="name of the iocsh script [default: iocsh.bash]",
-        default="iocsh.bash",
-    )
-    parser.add_argument(
-        "--delay",
-        help="time (in seconds) to wait before to send the exit command [default: 5]",
-        type=int,
-        default=5,
-    )
-    parser.add_argument(
-        "--timeout",
-        help="time (in seconds) to wait when sending the exit command [default: 5]",
-        type=int,
-        default=5,
-    )
-    args, remaining = parser.parse_known_args()
-    run_iocsh(args.name, args.delay, *remaining, timeout=args.timeout)
+    try:
+        run_iocsh(name, delay, *remaining, timeout=timeout)
+    except (Error, FileNotFoundError) as e:
+        logging.error(e)
+        sys.exit(1)
 
 
 if __name__ == "__main__":

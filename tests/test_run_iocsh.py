@@ -1,6 +1,7 @@
 import logging
 import pytest
-from run_iocsh import run_iocsh, IocshModuleNotFoundError, IocshTimeoutExpired
+from click.testing import CliRunner
+from run_iocsh import run_iocsh, main, IocshModuleNotFoundError, IocshTimeoutExpired
 
 
 def test_run_iocsh_script_not_found():
@@ -69,3 +70,36 @@ def test_run_iocsh_timeout_expired(name):
     with pytest.raises(IocshTimeoutExpired) as excinfo:
         run_iocsh(f"./tests/scripts/{name}", 0.1, timeout=0.5)
     assert "Failed to send exit to the IOC" == str(excinfo.value)
+
+
+@pytest.mark.parametrize(
+    "args",
+    [
+        ("--name", "foo"),
+        (
+            "--name",
+            "./tests/scripts/iocsh-timeout.bash",
+            "--delay",
+            "0.1",
+            "--timeout",
+            "0.5",
+        ),
+        ("--delay", "1", "-r", "foo"),
+        ("--delay", "1", "foo.cmd"),
+        ("--delay", "1", "-r", "iocstats,1234"),
+    ],
+)
+def test_run_exit_with_error_code(args):
+    runner = CliRunner()
+    result = runner.invoke(main, args)
+    assert result.exit_code == 1
+
+
+@pytest.mark.parametrize(
+    "args",
+    [("--delay", "1", "-r", "iocstats"), ("--delay", "1", "tests/cmds/test.cmd")],
+)
+def test_run_exit_without_error_code(args):
+    runner = CliRunner()
+    result = runner.invoke(main, args)
+    assert result.exit_code == 0
