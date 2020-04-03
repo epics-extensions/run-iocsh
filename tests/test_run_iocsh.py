@@ -65,6 +65,15 @@ def test_run_iocsh_autosave_file_not_found(caplog):
     )
 
 
+def test_run_iocsh_acf_file_not_found():
+    with pytest.raises(FileNotFoundError) as excinfo:
+        run_iocsh("iocsh.bash", 2, "tests/cmds/test_acf_file_not_found.cmd")
+    assert (
+        "No such file or directory: '/opt/conda/envs/test/modules/ess/0.3.0//unknown_access.acf'"
+        == str(excinfo.value)
+    )
+
+
 @pytest.mark.parametrize("name", ("iocsh-timeout.bash", "iocsh-stdin-closed.bash"))
 def test_run_iocsh_timeout_expired(name):
     with pytest.raises(IocshTimeoutExpired) as excinfo:
