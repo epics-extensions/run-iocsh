@@ -24,7 +24,7 @@ Quick start
     $ run-iocsh -h
     Usage: run-iocsh [OPTIONS] [REMAINING]...
 
-    Run iocsch.bash and send the exit command after x seconds
+    Run iocsch.bash and send the exit command after <delay> seconds
 
     Options:
       --name TEXT      name of the iocsh script [default: iocsh.bash]
