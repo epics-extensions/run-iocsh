@@ -58,47 +58,59 @@ class IocshTimeoutExpired(Error):
     pass
 
 
-def run_iocsh(name, delay, *args, timeout=5):
-    """Run <name> iocsh script and send the exit command after <delay> seconds"""
-    cmd = [name] + list(args)
-    logging.debug(f"Running: {cmd}")
-    proc = subprocess.Popen(
-        cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE
-    )
-    time.sleep(delay)
-    try:
-        outs, errs = proc.communicate(input=b"exit\n", timeout=timeout)
-    except subprocess.TimeoutExpired:
-        proc.kill()
-        # Trying to run "outs, errs = proc.communicate()" can raise:
-        # ValueError: Invalid file object: <_io.BufferedReader name=7>
-        # when stdin is already closed.
-        # In case of timeout, we don't care and just raise an exception
-        raise IocshTimeoutExpired("Failed to send exit to the IOC")
-    outs = outs.decode("utf-8")
-    errs = errs.decode("utf-8")
-    logging.info(
-        "========== stdout ============================\n"
-        + outs
-        + "============================================================================"
-    )
-    logging.info(
-        "========== stderr ============================\n"
-        + errs
-        + "============================================================================"
-    )
-    logging.debug(f"return code: {proc.returncode}")
-    m = RE_MODULE_NOT_AVAILABLE.search(outs)
-    if m:
-        raise IocshModuleNotFoundError(m.group(0))
-    m = RE_CANT_OPEN.search(outs)
-    if m and m.group(1) != "save_restore:":
-        raise FileNotFoundError(f"No such file or directory: '{m.group(2)}'")
-    m = RE_CANT_OPEN_FILE.search(outs)
-    if m and m.group(1) != "save_restore:":
-        raise FileNotFoundError(f"No such file or directory: '{m.group(2)}'")
-    if proc.returncode != 0:
-        raise IocshProcessError(f"Return code: {proc.returncode}")
+class IOC(object):
+    def __init__(self, name, delay, *args, timeout=5, keep_running=False):
+        self.name = name
+        self.delay = delay
+        self.args = list(args)
+        self.timeout = timeout
+        self.keep_running = keep_running
+
+    def run_iocsh(self):
+        """Run <name> iocsh script and send the exit command after <delay> seconds"""
+        cmd = [self.name] + self.args
+        logging.debug(f"Running: {cmd}")
+        self.proc = subprocess.Popen(
+            cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+        )
+        if not self.keep_running:
+            time.sleep(self.delay)
+            self.exit_iocsh()
+    
+    def exit_iocsh(self):
+        try:
+            outs, errs = self.proc.communicate(input=b"exit\n", timeout=self.timeout)
+        except subprocess.TimeoutExpired:
+            self.proc.kill()
+            # Trying to run "outs, errs = proc.communicate()" can raise:
+            # ValueError: Invalid file object: <_io.BufferedReader name=7>
+            # when stdin is already closed.
+            # In case of timeout, we don't care and just raise an exception
+            raise IocshTimeoutExpired("Failed to send exit to the IOC")
+        outs = outs.decode("utf-8")
+        errs = errs.decode("utf-8")
+        logging.info(
+            "========== stdout ============================\n"
+            + outs
+            + "============================================================================"
+        )
+        logging.info(
+            "========== stderr ============================\n"
+            + errs
+            + "============================================================================"
+        )
+        logging.debug(f"return code: {self.proc.returncode}")
+        m = RE_MODULE_NOT_AVAILABLE.search(outs)
+        if m:
+            raise IocshModuleNotFoundError(m.group(0))
+        m = RE_CANT_OPEN.search(outs)
+        if m and m.group(1) != "save_restore:":
+            raise FileNotFoundError(f"No such file or directory: '{m.group(2)}'")
+        m = RE_CANT_OPEN_FILE.search(outs)
+        if m and m.group(1) != "save_restore:":
+            raise FileNotFoundError(f"No such file or directory: '{m.group(2)}'")
+        if self.proc.returncode != 0:
+            raise IocshProcessError(f"Return code: {self.proc.returncode}")
 
 
 @click.command(
@@ -130,8 +142,9 @@ def main(name, delay, timeout, remaining):
     logging.basicConfig(
         format="%(asctime)s %(levelname)s: %(message)s ", level=logging.DEBUG
     )
+    ioc = IOC(name, delay, *remaining, timeout=timeout)
     try:
-        run_iocsh(name, delay, *remaining, timeout=timeout)
+        ioc.run_iocsh()
     except (Error, FileNotFoundError) as e:
         logging.error(e)
         sys.exit(1)
