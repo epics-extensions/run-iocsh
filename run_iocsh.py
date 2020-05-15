@@ -68,7 +68,7 @@ class IOC(object):
         self.outs = ""
         self.errs = ""
 
-    def running(self):
+    def is_running(self):
         """
         Check if the ioc is already running
         """
@@ -80,7 +80,7 @@ class IOC(object):
 
         If a positive <delay> is passed, send the exit command after <delay> seconds
         """
-        if self.running():
+        if self.is_running():
             raise IocshAlreadyRunning("IOC already running")
 
         # Reset the output
@@ -97,7 +97,7 @@ class IOC(object):
         """
         Send the exit command to the running IOC.
         """
-        if not self.running():
+        if not self.is_running():
             logging.warning("IOC not running")
             return
 
@@ -114,7 +114,7 @@ class IOC(object):
         self.errs = errs.decode("utf-8")
 
     def parse_output(self):
-        if self.running():
+        if self.is_running():
             logging.warning("IOC still running")
             return
 
