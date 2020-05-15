@@ -58,28 +58,36 @@ class IocshTimeoutExpired(Error):
     pass
 
 
-class IOC(object):
-    def __init__(self, name, delay, *args, timeout=5, keep_running=False):
-        self.name = name
-        self.delay = delay
-        self.args = list(args)
-        self.timeout = timeout
-        self.keep_running = keep_running
+class IocshAlreadyRunning(Error):
+    """Exception raised when IOC is started a second time"""
+    pass
 
-    def run_iocsh(self):
+class IOC(object):
+    def __init__(self):
+        self.running = False
+
+    def run(self, name, delay, *args, timeout=5, keep_running=False):
         """Run <name> iocsh script and send the exit command after <delay> seconds"""
-        cmd = [self.name] + self.args
+        if self.running:
+            raise IocshAlreadyRunning("IOC already running")
+
+        cmd = [name] + list(args)
         logging.debug(f"Running: {cmd}")
+        self.running = True
         self.proc = subprocess.Popen(
             cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE
         )
-        if not self.keep_running:
-            time.sleep(self.delay)
-            self.exit_iocsh()
+        if not keep_running:
+            time.sleep(delay)
+            self.exit(timeout)
     
-    def exit_iocsh(self):
+    def exit(self, timeout=5):
+        if not self.running:
+            logging.warning("IOC not running")
+            return
+
         try:
-            outs, errs = self.proc.communicate(input=b"exit\n", timeout=self.timeout)
+            outs, errs = self.proc.communicate(input=b"exit\n", timeout=timeout)
         except subprocess.TimeoutExpired:
             self.proc.kill()
             # Trying to run "outs, errs = proc.communicate()" can raise:
@@ -112,6 +120,8 @@ class IOC(object):
         if self.proc.returncode != 0:
             raise IocshProcessError(f"Return code: {self.proc.returncode}")
 
+        self.running = False
+
 
 @click.command(
     context_settings={
@@ -142,9 +152,9 @@ def main(name, delay, timeout, remaining):
     logging.basicConfig(
         format="%(asctime)s %(levelname)s: %(message)s ", level=logging.DEBUG
     )
-    ioc = IOC(name, delay, *remaining, timeout=timeout)
+    ioc = IOC()
     try:
-        ioc.run_iocsh()
+        ioc.run(name, delay, *remaining, timeout=timeout)
     except (Error, FileNotFoundError) as e:
         logging.error(e)
         sys.exit(1)
