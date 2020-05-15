@@ -60,7 +60,9 @@ class IocshTimeoutExpired(Error):
 
 class IocshAlreadyRunning(Error):
     """Exception raised when IOC is started a second time"""
+
     pass
+
 
 class IOC(object):
     def __init__(self):
@@ -76,7 +78,7 @@ class IOC(object):
 
     def run(self, name, *args):
         """
-        Run <name> iocsh script. 
+        Run <name> iocsh script.
 
         If a positive <delay> is passed, send the exit command after <delay> seconds
         """
@@ -92,7 +94,7 @@ class IOC(object):
         self.proc = subprocess.Popen(
             cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE
         )
-    
+
     def exit(self, timeout=5):
         """
         Send the exit command to the running IOC.
