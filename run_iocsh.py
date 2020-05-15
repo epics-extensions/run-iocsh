@@ -67,21 +67,29 @@ class IOC(object):
         self.running = False
 
     def run(self, name, delay, *args, timeout=5, keep_running=False):
-        """Run <name> iocsh script and send the exit command after <delay> seconds"""
+        """
+        Run <name> iocsh script. 
+
+        Default behavior is to send the exit command after <delay> seconds
+        """
         if self.running:
             raise IocshAlreadyRunning("IOC already running")
 
         cmd = [name] + list(args)
         logging.debug(f"Running: {cmd}")
-        self.running = True
         self.proc = subprocess.Popen(
             cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE
         )
+        self.running = True
+
         if not keep_running:
             time.sleep(delay)
             self.exit(timeout)
     
     def exit(self, timeout=5):
+        """
+        Send the exit command to the running IOC.
+        """
         if not self.running:
             logging.warning("IOC not running")
             return
