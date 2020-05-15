@@ -64,7 +64,13 @@ class IocshAlreadyRunning(Error):
 
 class IOC(object):
     def __init__(self):
-        self.running = False
+        self.proc = None
+
+    def running(self):
+        """
+        Check if the ioc is already running
+        """
+        return self.proc is not None and self.proc.poll() is None
 
     def run(self, name, delay, *args, timeout=5, keep_running=False):
         """
@@ -72,7 +78,7 @@ class IOC(object):
 
         Default behavior is to send the exit command after <delay> seconds
         """
-        if self.running:
+        if self.running():
             raise IocshAlreadyRunning("IOC already running")
 
         cmd = [name] + list(args)
@@ -80,7 +86,6 @@ class IOC(object):
         self.proc = subprocess.Popen(
             cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE
         )
-        self.running = True
 
         if not keep_running:
             time.sleep(delay)
@@ -90,7 +95,7 @@ class IOC(object):
         """
         Send the exit command to the running IOC.
         """
-        if not self.running:
+        if not self.running():
             logging.warning("IOC not running")
             return
 
@@ -127,8 +132,6 @@ class IOC(object):
             raise FileNotFoundError(f"No such file or directory: '{m.group(2)}'")
         if self.proc.returncode != 0:
             raise IocshProcessError(f"Return code: {self.proc.returncode}")
-
-        self.running = False
 
 
 @click.command(
