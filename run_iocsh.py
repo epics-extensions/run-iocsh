@@ -65,6 +65,8 @@ class IocshAlreadyRunning(Error):
 class IOC(object):
     def __init__(self):
         self.proc = None
+        self.outs = ""
+        self.errs = ""
 
     def running(self):
         """
@@ -72,7 +74,7 @@ class IOC(object):
         """
         return self.proc is not None and self.proc.poll() is None
 
-    def run(self, name, exit_delay, *args, timeout=5):
+    def run(self, name, *args):
         """
         Run <name> iocsh script. 
 
@@ -81,15 +83,15 @@ class IOC(object):
         if self.running():
             raise IocshAlreadyRunning("IOC already running")
 
+        # Reset the output
+        self.outs = ""
+        self.errs = ""
+
         cmd = [name] + list(args)
         logging.debug(f"Running: {cmd}")
         self.proc = subprocess.Popen(
             cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE
         )
-
-        if exit_delay > 0:
-            time.sleep(exit_delay)
-            self.exit(timeout)
     
     def exit(self, timeout=5):
         """
@@ -108,26 +110,32 @@ class IOC(object):
             # when stdin is already closed.
             # In case of timeout, we don't care and just raise an exception
             raise IocshTimeoutExpired("Failed to send exit to the IOC")
-        outs = outs.decode("utf-8")
-        errs = errs.decode("utf-8")
+        self.outs = outs.decode("utf-8")
+        self.errs = errs.decode("utf-8")
+
+    def parse_output(self):
+        if self.running():
+            logging.warning("IOC still running")
+            return
+
         logging.info(
             "========== stdout ============================\n"
-            + outs
+            + self.outs
             + "============================================================================"
         )
         logging.info(
             "========== stderr ============================\n"
-            + errs
+            + self.errs
             + "============================================================================"
         )
         logging.debug(f"return code: {self.proc.returncode}")
-        m = RE_MODULE_NOT_AVAILABLE.search(outs)
+        m = RE_MODULE_NOT_AVAILABLE.search(self.outs)
         if m:
             raise IocshModuleNotFoundError(m.group(0))
-        m = RE_CANT_OPEN.search(outs)
+        m = RE_CANT_OPEN.search(self.outs)
         if m and m.group(1) != "save_restore:":
             raise FileNotFoundError(f"No such file or directory: '{m.group(2)}'")
-        m = RE_CANT_OPEN_FILE.search(outs)
+        m = RE_CANT_OPEN_FILE.search(self.outs)
         if m and m.group(1) != "save_restore:":
             raise FileNotFoundError(f"No such file or directory: '{m.group(2)}'")
         if self.proc.returncode != 0:
@@ -165,7 +173,13 @@ def main(name, delay, timeout, remaining):
     )
     ioc = IOC()
     try:
-        ioc.run(name, delay, *remaining, timeout=timeout)
+        ioc.run(name, *remaining)
+
+        time.sleep(delay)
+
+        ioc.exit(timeout)
+
+        ioc.parse_output()
     except (Error, FileNotFoundError) as e:
         logging.error(e)
         sys.exit(1)
