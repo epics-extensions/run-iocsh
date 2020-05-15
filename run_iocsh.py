@@ -72,11 +72,11 @@ class IOC(object):
         """
         return self.proc is not None and self.proc.poll() is None
 
-    def run(self, name, delay, *args, timeout=5, keep_running=False):
+    def run(self, name, exit_delay, *args, timeout=5):
         """
         Run <name> iocsh script. 
 
-        Default behavior is to send the exit command after <delay> seconds
+        If a positive <delay> is passed, send the exit command after <delay> seconds
         """
         if self.running():
             raise IocshAlreadyRunning("IOC already running")
@@ -87,8 +87,8 @@ class IOC(object):
             cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE
         )
 
-        if not keep_running:
-            time.sleep(delay)
+        if exit_delay > 0:
+            time.sleep(exit_delay)
             self.exit(timeout)
     
     def exit(self, timeout=5):
