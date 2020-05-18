@@ -49,7 +49,7 @@ def test_run_iocsh_execute_cmd_file(caplog):
         run_iocsh("iocsh.bash", 2, "tests/cmds/test.cmd")
     assert "Loaded iocstats version" in caplog.text
     assert 'runScript("iocStats.iocsh", "IOCNAME=TEST1:")' in caplog.text
-    assert 'dbLoadRecords("iocAdminSoft.db", "IOC=TEST1:-IocStats")' in caplog.text
+    assert 'dbLoadRecords("iocAdminSoft-ess.db", "IOC=TEST1:-IocStats")' in caplog.text
 
 
 def test_run_iocsh_cmd_file_not_found():
