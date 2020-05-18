@@ -99,9 +99,6 @@ class IOC(object):
         """
         Send the exit command to the running IOC.
         """
-        if not self.is_running():
-            logging.warning("IOC not running")
-            return
 
         try:
             outs, errs = self.proc.communicate(input=b"exit\n", timeout=timeout)
@@ -144,6 +141,15 @@ class IOC(object):
             raise IocshProcessError(f"Return code: {self.proc.returncode}")
 
 
+def run_iocsh(name, delay, *args, timeout=5):
+    """Runs an IOC, exits, and parses the output."""
+    ioc = IOC()
+    ioc.run(name, *args)
+    time.sleep(delay)
+    ioc.exit(timeout)
+    ioc.parse_output()
+
+
 @click.command(
     context_settings={
         "ignore_unknown_options": True,
@@ -173,15 +179,8 @@ def main(name, delay, timeout, remaining):
     logging.basicConfig(
         format="%(asctime)s %(levelname)s: %(message)s ", level=logging.DEBUG
     )
-    ioc = IOC()
     try:
-        ioc.run(name, *remaining)
-
-        time.sleep(delay)
-
-        ioc.exit(timeout)
-
-        ioc.parse_output()
+        run_iocsh(name, delay, *remaining, timeout=timeout)
     except (Error, FileNotFoundError) as e:
         logging.error(e)
         sys.exit(1)

@@ -1,7 +1,15 @@
 import logging
 import pytest
+import re
 from click.testing import CliRunner
 from run_iocsh import run_iocsh, main, IocshModuleNotFoundError, IocshTimeoutExpired
+
+
+def get_module_dir(logtext: str, module: str):
+    match = re.search(
+        "Module {} version ".format(module) + r".* found in (.*)\n", logtext
+    )
+    return match.group(1) if match else ""
 
 
 def test_run_iocsh_script_not_found():
@@ -41,7 +49,7 @@ def test_run_iocsh_execute_cmd_file(caplog):
         run_iocsh("iocsh.bash", 2, "tests/cmds/test.cmd")
     assert "Loaded iocstats version" in caplog.text
     assert 'runScript("iocStats.iocsh", "IOCNAME=TEST1:")' in caplog.text
-    assert 'dbLoadRecords("iocAdminSoft-ess.db", "IOC=TEST1:-IocStats")' in caplog.text
+    assert 'dbLoadRecords("iocAdminSoft.db", "IOC=TEST1:-IocStats")' in caplog.text
 
 
 def test_run_iocsh_cmd_file_not_found():
@@ -57,20 +65,20 @@ def test_run_iocsh_autosave(caplog):
 
 
 def test_run_iocsh_autosave_file_not_found(caplog):
-    with pytest.raises(FileNotFoundError) as excinfo:
+    with caplog.at_level(logging.INFO), pytest.raises(FileNotFoundError) as excinfo:
         run_iocsh("iocsh.bash", 2, "tests/cmds/test_autosave_file_not_found.cmd")
-    assert (
-        "No such file or directory: '/opt/conda/envs/test/modules/autosave/5.10.0/foo.iocsh'"
-        == str(excinfo.value)
+    autosave_dir = get_module_dir(caplog.text, "autosave")
+    assert "No such file or directory: '{}foo.iocsh'".format(autosave_dir) == str(
+        excinfo.value
     )
 
 
-def test_run_iocsh_acf_file_not_found():
-    with pytest.raises(FileNotFoundError) as excinfo:
+def test_run_iocsh_acf_file_not_found(caplog):
+    with caplog.at_level(logging.INFO), pytest.raises(FileNotFoundError) as excinfo:
         run_iocsh("iocsh.bash", 2, "tests/cmds/test_acf_file_not_found.cmd")
-    assert (
-        "No such file or directory: '/opt/conda/envs/test/modules/ess/0.3.0//unknown_access.acf'"
-        == str(excinfo.value)
+    ess_dir = get_module_dir(caplog.text, "ess")
+    assert "No such file or directory: '{}/unknown_access.acf'".format(ess_dir) == str(
+        excinfo.value
     )
 
 
