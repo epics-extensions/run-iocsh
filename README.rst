@@ -73,6 +73,8 @@ All other arguments are passed to the iocsh script::
 
 run-iocsh also allows for more fine-grained control of the testing process through the included class `IOC`.
 
+.. code-block:: python
+
     from run_iocsh import IOC
     from epics import PV
 
