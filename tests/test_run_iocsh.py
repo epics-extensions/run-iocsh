@@ -7,6 +7,8 @@ from run_iocsh import (
     main,
     IocshModuleNotFoundError,
     IocshTimeoutExpired,
+    IocshAlreadyRunning,
+    IOC,
 )
 
 
@@ -85,6 +87,28 @@ def test_run_iocsh_acf_file_not_found(caplog):
     assert "No such file or directory: '{}/unknown_access.acf'".format(ess_dir) == str(
         excinfo.value
     )
+
+
+def test_split_run():
+    ioc = IOC()
+    assert not ioc.is_running()
+
+    ioc.run("iocsh.bash")
+    assert ioc.is_running()
+
+    ioc.exit()
+    assert not ioc.is_running()
+
+
+def test_already_running():
+    ioc = IOC()
+
+    ioc.run("iocsh.bash")
+    with pytest.raises(IocshAlreadyRunning) as excinfo:
+        ioc.run("iocsh.bash")
+
+    ioc.exit()
+    assert "IOC already running" in str(excinfo.value)
 
 
 @pytest.mark.parametrize("name", ("iocsh-timeout.bash", "iocsh-stdin-closed.bash"))

@@ -79,8 +79,6 @@ class IOC(object):
     def run(self, name, *args):
         """
         Run <name> iocsh script.
-
-        If a positive <delay> is passed, send the exit command after <delay> seconds
         """
         if self.is_running():
             raise IocshAlreadyRunning("IOC already running")
