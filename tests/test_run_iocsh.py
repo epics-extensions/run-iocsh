@@ -1,6 +1,8 @@
 import logging
 import pytest
 import re
+from epics import PV
+from time import sleep
 from click.testing import CliRunner
 from run_iocsh import (
     run_iocsh,
@@ -75,16 +77,14 @@ def test_run_iocsh_autosave_file_not_found(caplog):
     with caplog.at_level(logging.INFO), pytest.raises(FileNotFoundError) as excinfo:
         run_iocsh("iocsh.bash", 2, "tests/cmds/test_autosave_file_not_found.cmd")
     autosave_dir = get_module_dir(caplog.text, "autosave")
-    assert "No such file or directory: '{}foo.iocsh'".format(autosave_dir) == str(
-        excinfo.value
-    )
+    assert f"No such file or directory: '{autosave_dir}foo.iocsh'" == str(excinfo.value)
 
 
 def test_run_iocsh_acf_file_not_found(caplog):
     with caplog.at_level(logging.INFO), pytest.raises(FileNotFoundError) as excinfo:
         run_iocsh("iocsh.bash", 2, "tests/cmds/test_acf_file_not_found.cmd")
     ess_dir = get_module_dir(caplog.text, "ess")
-    assert "No such file or directory: '{}/unknown_access.acf'".format(ess_dir) == str(
+    assert f"No such file or directory: '{ess_dir}/unknown_access.acf'" == str(
         excinfo.value
     )
 
@@ -109,6 +109,20 @@ def test_already_running():
 
     ioc.exit()
     assert "IOC already running" in str(excinfo.value)
+
+
+def test_runiocsh_with_pvaccess():
+    ioc = IOC()
+    ioc.run("iocsh.bash", "tests/cmds/test_pv.cmd")
+
+    pv = PV("TEST")
+    assert int(pv.get()) == 5
+
+    pv.put("17")
+    sleep(1)
+    assert int(pv.get()) == 17
+
+    ioc.exit()
 
 
 @pytest.mark.parametrize("name", ("iocsh-timeout.bash", "iocsh-stdin-closed.bash"))

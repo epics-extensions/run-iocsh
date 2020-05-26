@@ -23,11 +23,11 @@ test-python36:
     - source /etc/profile.d/conda.sh
     - conda create -n test -y -c conda-e3-virtual python=3.6 iocstats=3.1.16 autosave=5.10.0 ess=0.3.0
     - conda activate test
-    - pip install pytest
+    - pip install pytest pyepics
     - pip install -e .
   script:
     - run-iocsh -h
-    - pytest -v --ignore=tests/test_python37.py tests
+    - pytest -v tests
 
 test-python37:
   <<: *runner_tags
@@ -35,9 +35,9 @@ test-python37:
   image: registry.esss.lu.se/ics-docker/miniconda
   before_script:
     - source /etc/profile.d/conda.sh
-    - conda create -n test -y -c conda-e3-virtual python=3.7 iocstats=3.1.16 autosave=5.10.0 ess=0.3.0 pyepics=3.4.1
+    - conda create -n test -y -c conda-e3-virtual python=3.7 iocstats=3.1.16 autosave=5.10.0 ess=0.3.0
     - conda activate test
-    - pip install pytest pytest-cov
+    - pip install pytest pytest-cov pyepics
     - pip install -e .
   script:
     - run-iocsh -h

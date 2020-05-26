@@ -64,7 +64,7 @@ class IocshAlreadyRunning(Error):
     pass
 
 
-class IOC(object):
+class IOC:
     def __init__(self):
         self.proc = None
         self.outs = ""
@@ -98,15 +98,19 @@ class IOC(object):
         Send the exit command to the running IOC.
         """
 
-        try:
-            outs, errs = self.proc.communicate(input=b"exit\n", timeout=timeout)
-        except subprocess.TimeoutExpired:
-            self.proc.kill()
-            # Trying to run "outs, errs = proc.communicate()" can raise:
-            # ValueError: Invalid file object: <_io.BufferedReader name=7>
-            # when stdin is already closed.
-            # In case of timeout, we don't care and just raise an exception
-            raise IocshTimeoutExpired("Failed to send exit to the IOC")
+        if self.is_running():
+            try:
+                outs, errs = self.proc.communicate(input=b"exit\n", timeout=timeout)
+            except subprocess.TimeoutExpired:
+                self.proc.kill()
+                # Trying to run "outs, errs = proc.communicate()" can raise:
+                # ValueError: Invalid file object: <_io.BufferedReader name=7>
+                # when stdin is already closed.
+                # In case of timeout, we don't care and just raise an exception
+                raise IocshTimeoutExpired("Failed to send exit to the IOC")
+        else:
+            outs, errs = self.proc.communicate()
+
         self.outs = outs.decode("utf-8")
         self.errs = errs.decode("utf-8")
 
