@@ -78,20 +78,31 @@ run-iocsh also allows for more fine-grained control of the testing process throu
     from run_iocsh import IOC
     from epics import PV
 
-    ioc = IOC()
-    ioc.run("iocsh.bash", "st.cmd")
+    ioc = IOC("st.cmd")
+    ioc.run()
 
     pv = PV("TEST")
     print(pv.get())
 
     ioc.exit()
 
-    ioc.parse_output()
+    ioc.check_output()
 
     print(ioc.outs)
 
 The above example allows you to start an IOC with a given startup script, and communicate with the IOC via
-PVAccess. This permits much more flexibility for automated testing of IOCs and EPICS modules.
+channel access. This permits much more flexibility for automated testing of IOCs and EPICS modules.
+
+The IOC class can also be used as a context manager:
+
+.. code-block:: python
+
+    with IOC("st.cmd") as ioc:
+        pv = PV("TEST")
+        print(pv.get())
+
+    ioc.check_output()
+    print(ioc.outs)
 
 Installation
 ------------

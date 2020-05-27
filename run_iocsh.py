@@ -79,17 +79,11 @@ class IOC:
         self.args = args
         if softioc_path is None:
             e3_require_bin = os.getenv("E3_REQUIRE_BIN")
-            if not e3_require_bin:
+            if e3_require_bin is None:
                 raise RequireEnvNotSet("$E3_REQUIRE_BIN is not set")
             self.softioc_path = os.path.join(e3_require_bin, "iocsh.bash")
         else:
             self.softioc_path = softioc_path
-
-    def is_running(self):
-        """
-        Check if the ioc is already running
-        """
-        return self.proc is not None and self.proc.poll() is None
 
     def __enter__(self):
         self.run()
@@ -97,6 +91,12 @@ class IOC:
 
     def __exit__(self, exc_type, exc_value, exc_traceback):
         self.exit()
+
+    def is_running(self):
+        """
+        Check if the ioc is already running
+        """
+        return self.proc is not None and self.proc.poll() is None
 
     def run(self):
         """
