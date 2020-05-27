@@ -1,13 +1,11 @@
 import logging
 import pytest
 import re
-from epics import PV
 from time import sleep
 from click.testing import CliRunner
 from run_iocsh import (
     run_iocsh,
     main,
-    RequireEnvNotSet,
     IocshModuleNotFoundError,
     IocshTimeoutExpired,
     IocshAlreadyRunning,
@@ -90,12 +88,6 @@ def test_run_iocsh_acf_file_not_found(caplog):
     )
 
 
-def test_missing_require_bin(monkeypatch):
-    monkeypatch.delenv("E3_REQUIRE_BIN")
-    with pytest.raises(RequireEnvNotSet):
-        IOC()
-
-
 def test_split_run():
     ioc = IOC()
     assert not ioc.is_running()
@@ -115,6 +107,8 @@ def test_already_running():
 
 
 def test_runiocsh_ca():
+    from epics import PV
+
     with IOC("tests/cmds/test_pv.cmd"):
         pv = PV("TEST")
         assert int(pv.get()) == 5

@@ -24,7 +24,7 @@ import re
 import subprocess
 import sys
 import time
-import os
+import shutil
 
 
 RE_MODULE_NOT_AVAILABLE = re.compile("Module .*? not available")
@@ -34,12 +34,6 @@ RE_CANT_OPEN_FILE = re.compile(r"(save_restore:)?\s*Can't\s*open\sfile\s\'(.*?)\
 
 class Error(Exception):
     """Base class for exceptions in this module."""
-
-    pass
-
-
-class RequireEnvNotSet(Error):
-    """Exception raised when E3_REQUIRE_BIN is not set"""
 
     pass
 
@@ -72,18 +66,15 @@ class IocshAlreadyRunning(Error):
 
 
 class IOC:
-    def __init__(self, *args, softioc_path=None):
+    def __init__(self, *args, ioc_executable="iocsh.bash", timeout=5.0):
         self.proc = None
         self.outs = ""
         self.errs = ""
         self.args = args
-        if softioc_path is None:
-            e3_require_bin = os.getenv("E3_REQUIRE_BIN")
-            if e3_require_bin is None:
-                raise RequireEnvNotSet("$E3_REQUIRE_BIN is not set")
-            self.softioc_path = os.path.join(e3_require_bin, "iocsh.bash")
-        else:
-            self.softioc_path = softioc_path
+        if shutil.which(ioc_executable) is None:
+            raise FileNotFoundError(f"No such file or directory: '{ioc_executable}'")
+        self.ioc_executable = ioc_executable
+        self.timeout = timeout
 
     def __enter__(self):
         self.run()
@@ -100,7 +91,7 @@ class IOC:
 
     def run(self):
         """
-        Run <self.softioc_path> iocsh script with given command-line args
+        Run <self.ioc_executable> iocsh script with given command-line args
         """
         if self.is_running():
             raise IocshAlreadyRunning("IOC already running")
@@ -109,7 +100,7 @@ class IOC:
         self.outs = ""
         self.errs = ""
 
-        cmd = [self.softioc_path] + list(self.args)
+        cmd = [self.ioc_executable] + list(self.args)
         logging.debug(f"Running: {cmd}")
         self.proc = subprocess.Popen(
             cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE
@@ -167,7 +158,7 @@ class IOC:
 
 def run_iocsh(name, delay, *args, timeout=5):
     """Runs an IOC, exits, and parses the output."""
-    with IOC(*args, softioc_path=name) as ioc:
+    with IOC(*args, ioc_executable=name, timeout=timeout) as ioc:
         time.sleep(delay)
     ioc.check_output()
 
