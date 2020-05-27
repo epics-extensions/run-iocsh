@@ -108,62 +108,40 @@ def test_split_run():
 
 
 def test_already_running():
-    ioc = IOC()
-
-    ioc.run()
-    with pytest.raises(IocshAlreadyRunning) as excinfo:
+    with pytest.raises(IocshAlreadyRunning) as excinfo, IOC() as ioc:
         ioc.run()
 
-    ioc.exit()
     assert "IOC already running" in str(excinfo.value)
 
 
 def test_runiocsh_ca():
-    ioc = IOC()
-    ioc.run("tests/cmds/test_pv.cmd")
+    with IOC("tests/cmds/test_pv.cmd"):
+        pv = PV("TEST")
+        assert int(pv.get()) == 5
 
-    pv = PV("TEST")
-    assert int(pv.get()) == 5
-
-    pv.put("17")
-    sleep(0.1)
-    assert int(pv.get()) == 17
-
-    ioc.exit()
+        pv.put("17")
+        sleep(0.1)
+        assert int(pv.get()) == 17
 
 
 def test_pvapy():
     from pvaccess import Channel, PvDouble
 
-    ioc = IOC()
-    ioc.run("tests/cmds/test_pv.cmd")
-
-    channel = Channel("TEST")
-
-    pv = PvDouble(13.0)
-
-    channel.put(pv)
-
-    sleep(0.1)
-
-    assert channel.get().get()["value"] == 13.0
-
-    ioc.exit()
+    with IOC("tests/cmds/test_pv.cmd"):
+        channel = Channel("TEST")
+        channel.put(PvDouble(13.0))
+        sleep(0.1)
+        assert channel.get().get()["value"] == 13.0
 
 
 def test_p4p():
     from p4p.client.thread import Context
 
-    ioc = IOC()
-    ioc.run("tests/cmds/test_pv.cmd")
-
     assert "pva" in Context.providers()
 
-    with Context("pva") as ctxt:
+    with IOC("tests/cmds/test_pv.cmd"), Context("pva") as ctxt:
         ctxt.put("TEST", 19)
         assert ctxt.get("TEST") == 19.0
-
-    ioc.exit()
 
 
 @pytest.mark.parametrize("name", ("iocsh-timeout.bash", "iocsh-stdin-closed.bash"))

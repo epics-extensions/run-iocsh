@@ -72,10 +72,11 @@ class IocshAlreadyRunning(Error):
 
 
 class IOC:
-    def __init__(self, softioc_path=None):
+    def __init__(self, *args, softioc_path=None):
         self.proc = None
         self.outs = ""
         self.errs = ""
+        self.args = args
         if softioc_path is None:
             e3_require_bin = os.getenv("E3_REQUIRE_BIN")
             if not e3_require_bin:
@@ -90,7 +91,14 @@ class IOC:
         """
         return self.proc is not None and self.proc.poll() is None
 
-    def run(self, *args):
+    def __enter__(self):
+        self.run()
+        return self
+
+    def __exit__(self, exc_type, exc_value, exc_traceback):
+        self.exit()
+
+    def run(self):
         """
         Run <self.softioc_path> iocsh script with given command-line args
         """
@@ -101,7 +109,7 @@ class IOC:
         self.outs = ""
         self.errs = ""
 
-        cmd = [self.softioc_path] + list(args)
+        cmd = [self.softioc_path] + list(self.args)
         logging.debug(f"Running: {cmd}")
         self.proc = subprocess.Popen(
             cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE
@@ -159,10 +167,8 @@ class IOC:
 
 def run_iocsh(name, delay, *args, timeout=5):
     """Runs an IOC, exits, and parses the output."""
-    ioc = IOC(name)
-    ioc.run(*args)
-    time.sleep(delay)
-    ioc.exit(timeout)
+    with IOC(*args, softioc_path=name) as ioc:
+        time.sleep(delay)
     ioc.check_output()
 
 
