@@ -7,6 +7,7 @@ from click.testing import CliRunner
 from run_iocsh import (
     run_iocsh,
     main,
+    RequireEnvNotSet,
     IocshModuleNotFoundError,
     IocshTimeoutExpired,
     IocshAlreadyRunning,
@@ -89,11 +90,17 @@ def test_run_iocsh_acf_file_not_found(caplog):
     )
 
 
+def test_missing_require_bin(monkeypatch):
+    monkeypatch.delenv("E3_REQUIRE_BIN")
+    with pytest.raises(RequireEnvNotSet):
+        IOC()
+
+
 def test_split_run():
     ioc = IOC()
     assert not ioc.is_running()
 
-    ioc.run("iocsh.bash")
+    ioc.run()
     assert ioc.is_running()
 
     ioc.exit()
@@ -103,24 +110,58 @@ def test_split_run():
 def test_already_running():
     ioc = IOC()
 
-    ioc.run("iocsh.bash")
+    ioc.run()
     with pytest.raises(IocshAlreadyRunning) as excinfo:
-        ioc.run("iocsh.bash")
+        ioc.run()
 
     ioc.exit()
     assert "IOC already running" in str(excinfo.value)
 
 
-def test_runiocsh_with_pvaccess():
+def test_runiocsh_ca():
     ioc = IOC()
-    ioc.run("iocsh.bash", "tests/cmds/test_pv.cmd")
+    ioc.run("tests/cmds/test_pv.cmd")
 
     pv = PV("TEST")
     assert int(pv.get()) == 5
 
     pv.put("17")
-    sleep(1)
+    sleep(0.1)
     assert int(pv.get()) == 17
+
+    ioc.exit()
+
+
+def test_pvapy():
+    from pvaccess import Channel, PvDouble
+
+    ioc = IOC()
+    ioc.run("tests/cmds/test_pv.cmd")
+
+    channel = Channel("TEST")
+
+    pv = PvDouble(13.0)
+
+    channel.put(pv)
+
+    sleep(0.1)
+
+    assert channel.get().get()["value"] == 13.0
+
+    ioc.exit()
+
+
+def test_p4p():
+    from p4p.client.thread import Context
+
+    ioc = IOC()
+    ioc.run("tests/cmds/test_pv.cmd")
+
+    assert "pva" in Context.providers()
+
+    with Context("pva") as ctxt:
+        ctxt.put("TEST", 19)
+        assert ctxt.get("TEST") == 19.0
 
     ioc.exit()
 
