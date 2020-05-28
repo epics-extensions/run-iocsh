@@ -92,7 +92,7 @@ def test_split_run():
     ioc = IOC()
     assert not ioc.is_running()
 
-    ioc.run()
+    ioc.start()
     assert ioc.is_running()
 
     ioc.exit()
@@ -101,7 +101,7 @@ def test_split_run():
 
 def test_already_running():
     with pytest.raises(IocshAlreadyRunning) as excinfo, IOC() as ioc:
-        ioc.run()
+        ioc.start()
 
     assert "IOC already running" in str(excinfo.value)
 
@@ -136,6 +136,14 @@ def test_p4p():
     with IOC("tests/cmds/test_pv.cmd"), Context("pva") as ctxt:
         ctxt.put("TEST", 19)
         assert ctxt.get("TEST") == 19.0
+
+
+def test_doubleexit(caplog):
+    with caplog.at_level(logging.WARNING):
+        with IOC() as ioc:
+            pass
+        ioc.exit()
+    assert "IOC is not running" in caplog.text
 
 
 @pytest.mark.parametrize("name", ("iocsh-timeout.bash", "iocsh-stdin-closed.bash"))

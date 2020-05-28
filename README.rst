@@ -79,7 +79,7 @@ run-iocsh also allows for more fine-grained control of the testing process throu
     from epics import PV
 
     ioc = IOC("st.cmd")
-    ioc.run()
+    ioc.start()
 
     pv = PV("TEST")
     print(pv.get())

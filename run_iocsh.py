@@ -66,6 +66,8 @@ class IocshAlreadyRunning(Error):
 
 
 class IOC:
+    INITIALIZED, STARTED, EXITED = range(3)
+
     def __init__(self, *args, ioc_executable="iocsh.bash", timeout=5.0):
         self.proc = None
         self.outs = ""
@@ -75,13 +77,14 @@ class IOC:
             raise FileNotFoundError(f"No such file or directory: '{ioc_executable}'")
         self.ioc_executable = ioc_executable
         self.timeout = timeout
+        self.state = IOC.INITIALIZED
 
     def __enter__(self):
-        self.run()
+        self.start()
         return self
 
     def __exit__(self, exc_type, exc_value, exc_traceback):
-        self.exit()
+        self.exit(self.timeout)
 
     def is_running(self):
         """
@@ -89,16 +92,20 @@ class IOC:
         """
         return self.proc is not None and self.proc.poll() is None
 
-    def run(self):
+    def start(self):
         """
         Run <self.ioc_executable> iocsh script with given command-line args
         """
-        if self.is_running():
+        if self.state == IOC.STARTED:
             raise IocshAlreadyRunning("IOC already running")
+
+        self.state = IOC.STARTED
 
         # Reset the output
         self.outs = ""
         self.errs = ""
+
+        self._exited = False
 
         cmd = [self.ioc_executable] + list(self.args)
         logging.debug(f"Running: {cmd}")
@@ -110,26 +117,28 @@ class IOC:
         """
         Send the exit command to the running IOC.
         """
+        if self.state != self.STARTED:
+            logging.warning("IOC is not running")
+            return
 
-        if self.is_running():
-            try:
-                outs, errs = self.proc.communicate(input=b"exit\n", timeout=timeout)
-            except subprocess.TimeoutExpired:
-                self.proc.kill()
-                # Trying to run "outs, errs = proc.communicate()" can raise:
-                # ValueError: Invalid file object: <_io.BufferedReader name=7>
-                # when stdin is already closed.
-                # In case of timeout, we don't care and just raise an exception
-                raise IocshTimeoutExpired("Failed to send exit to the IOC")
-        else:
-            outs, errs = self.proc.communicate()
+        self.state = IOC.EXITED
+
+        try:
+            outs, errs = self.proc.communicate(input=b"exit\n", timeout=timeout)
+        except subprocess.TimeoutExpired:
+            self.proc.kill()
+            # Trying to run "outs, errs = proc.communicate()" can raise:
+            # ValueError: Invalid file object: <_io.BufferedReader name=7>
+            # when stdin is already closed.
+            # In case of timeout, we don't care and just raise an exception
+            raise IocshTimeoutExpired("Failed to send exit to the IOC")
 
         self.outs = outs.decode("utf-8")
         self.errs = errs.decode("utf-8")
 
     def check_output(self):
-        if self.is_running():
-            logging.warning("IOC still running")
+        if self.state != IOC.EXITED:
+            logging.warning("IOC has not exited yet")
             return
 
         logging.info(
