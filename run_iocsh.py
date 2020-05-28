@@ -24,6 +24,7 @@ import re
 import subprocess
 import sys
 import time
+import shutil
 
 
 RE_MODULE_NOT_AVAILABLE = re.compile("Module .*? not available")
@@ -58,47 +59,117 @@ class IocshTimeoutExpired(Error):
     pass
 
 
+class IocshAlreadyRunning(Error):
+    """Exception raised when IOC is started a second time"""
+
+    pass
+
+
+class IOC:
+    INITIALIZED, STARTED, EXITED = range(3)
+
+    def __init__(self, *args, ioc_executable="iocsh.bash", timeout=5.0):
+        self.proc = None
+        self.outs = ""
+        self.errs = ""
+        self.args = args
+        if shutil.which(ioc_executable) is None:
+            raise FileNotFoundError(f"No such file or directory: '{ioc_executable}'")
+        self.ioc_executable = ioc_executable
+        self.timeout = timeout
+        self.state = IOC.INITIALIZED
+
+    def __enter__(self):
+        self.start()
+        return self
+
+    def __exit__(self, exc_type, exc_value, exc_traceback):
+        self.exit()
+
+    def is_running(self):
+        """
+        Check if the ioc is already running
+        """
+        return self.proc is not None and self.proc.poll() is None
+
+    def start(self):
+        """
+        Run <self.ioc_executable> iocsh script with given command-line args
+        """
+        if self.state == IOC.STARTED:
+            raise IocshAlreadyRunning("IOC already running")
+
+        self.state = IOC.STARTED
+
+        # Reset the output
+        self.outs = ""
+        self.errs = ""
+
+        self._exited = False
+
+        cmd = [self.ioc_executable] + list(self.args)
+        logging.debug(f"Running: {cmd}")
+        self.proc = subprocess.Popen(
+            cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+        )
+
+    def exit(self):
+        """
+        Send the exit command to the running IOC.
+        """
+        if self.state != self.STARTED:
+            logging.warning("IOC is not running")
+            return
+
+        self.state = IOC.EXITED
+
+        try:
+            outs, errs = self.proc.communicate(input=b"exit\n", timeout=self.timeout)
+        except subprocess.TimeoutExpired:
+            self.proc.kill()
+            # Trying to run "outs, errs = proc.communicate()" can raise:
+            # ValueError: Invalid file object: <_io.BufferedReader name=7>
+            # when stdin is already closed.
+            # In case of timeout, we don't care and just raise an exception
+            raise IocshTimeoutExpired("Failed to send exit to the IOC")
+
+        self.outs = outs.decode("utf-8")
+        self.errs = errs.decode("utf-8")
+
+    def check_output(self):
+        if self.state != IOC.EXITED:
+            logging.warning("IOC has not exited yet")
+            return
+
+        logging.info(
+            "========== stdout ============================\n"
+            + self.outs
+            + "============================================================================"
+        )
+        logging.info(
+            "========== stderr ============================\n"
+            + self.errs
+            + "============================================================================"
+        )
+        logging.debug(f"return code: {self.proc.returncode}")
+        m = RE_MODULE_NOT_AVAILABLE.search(self.outs)
+        if m:
+            raise IocshModuleNotFoundError(m.group(0))
+        m = RE_CANT_OPEN.search(self.outs)
+        if m and m.group(1) != "save_restore:":
+            raise FileNotFoundError(f"No such file or directory: '{m.group(2)}'")
+        m = RE_CANT_OPEN_FILE.search(self.outs)
+        if m and m.group(1) != "save_restore:":
+            raise FileNotFoundError(f"No such file or directory: '{m.group(2)}'")
+        if self.proc.returncode != 0:
+            raise IocshProcessError(f"Return code: {self.proc.returncode}")
+
+
 def run_iocsh(name, delay, *args, timeout=5):
-    """Run <name> iocsh script and send the exit command after <delay> seconds"""
-    cmd = [name] + list(args)
-    logging.debug(f"Running: {cmd}")
-    proc = subprocess.Popen(
-        cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE
-    )
-    time.sleep(delay)
-    try:
-        outs, errs = proc.communicate(input=b"exit\n", timeout=timeout)
-    except subprocess.TimeoutExpired:
-        proc.kill()
-        # Trying to run "outs, errs = proc.communicate()" can raise:
-        # ValueError: Invalid file object: <_io.BufferedReader name=7>
-        # when stdin is already closed.
-        # In case of timeout, we don't care and just raise an exception
-        raise IocshTimeoutExpired("Failed to send exit to the IOC")
-    outs = outs.decode("utf-8")
-    errs = errs.decode("utf-8")
-    logging.info(
-        "========== stdout ============================\n"
-        + outs
-        + "============================================================================"
-    )
-    logging.info(
-        "========== stderr ============================\n"
-        + errs
-        + "============================================================================"
-    )
-    logging.debug(f"return code: {proc.returncode}")
-    m = RE_MODULE_NOT_AVAILABLE.search(outs)
-    if m:
-        raise IocshModuleNotFoundError(m.group(0))
-    m = RE_CANT_OPEN.search(outs)
-    if m and m.group(1) != "save_restore:":
-        raise FileNotFoundError(f"No such file or directory: '{m.group(2)}'")
-    m = RE_CANT_OPEN_FILE.search(outs)
-    if m and m.group(1) != "save_restore:":
-        raise FileNotFoundError(f"No such file or directory: '{m.group(2)}'")
-    if proc.returncode != 0:
-        raise IocshProcessError(f"Return code: {proc.returncode}")
+    """Runs an IOC, exits, and parses the output."""
+    with IOC(*args, ioc_executable=name, timeout=timeout) as ioc:
+        time.sleep(delay)
+    ioc.check_output()
 
 
 @click.command(

@@ -70,6 +70,40 @@ All other arguments are passed to the iocsh script::
     $ run-iocsh cmds/test1.cmd
     ...
 
+
+run-iocsh also allows for more fine-grained control of the testing process through the included class `IOC`.
+
+.. code-block:: python
+
+    from run_iocsh import IOC
+    from epics import PV
+
+    ioc = IOC("st.cmd")
+    ioc.start()
+
+    pv = PV("TEST")
+    print(pv.get())
+
+    ioc.exit()
+
+    ioc.check_output()
+
+    print(ioc.outs)
+
+The above example allows you to start an IOC with a given startup script, and communicate with the IOC via
+channel access. This permits much more flexibility for automated testing of IOCs and EPICS modules.
+
+The IOC class can also be used as a context manager:
+
+.. code-block:: python
+
+    with IOC("st.cmd") as ioc:
+        pv = PV("TEST")
+        print(pv.get())
+
+    ioc.check_output()
+    print(ioc.outs)
+
 Installation
 ------------
 

@@ -1,7 +1,23 @@
 import logging
 import pytest
+import re
+from time import sleep
 from click.testing import CliRunner
-from run_iocsh import run_iocsh, main, IocshModuleNotFoundError, IocshTimeoutExpired
+from run_iocsh import (
+    run_iocsh,
+    main,
+    IocshModuleNotFoundError,
+    IocshTimeoutExpired,
+    IocshAlreadyRunning,
+    IOC,
+)
+
+
+def get_module_dir(logtext: str, module: str):
+    match = re.search(
+        "Module {} version ".format(module) + r".* found in (.*)\n", logtext
+    )
+    return match.group(1) if match else ""
 
 
 def test_run_iocsh_script_not_found():
@@ -57,21 +73,77 @@ def test_run_iocsh_autosave(caplog):
 
 
 def test_run_iocsh_autosave_file_not_found(caplog):
-    with pytest.raises(FileNotFoundError) as excinfo:
+    with caplog.at_level(logging.INFO), pytest.raises(FileNotFoundError) as excinfo:
         run_iocsh("iocsh.bash", 2, "tests/cmds/test_autosave_file_not_found.cmd")
-    assert (
-        "No such file or directory: '/opt/conda/envs/test/modules/autosave/5.10.0/foo.iocsh'"
-        == str(excinfo.value)
-    )
+    autosave_dir = get_module_dir(caplog.text, "autosave")
+    assert f"No such file or directory: '{autosave_dir}foo.iocsh'" == str(excinfo.value)
 
 
-def test_run_iocsh_acf_file_not_found():
-    with pytest.raises(FileNotFoundError) as excinfo:
+def test_run_iocsh_acf_file_not_found(caplog):
+    with caplog.at_level(logging.INFO), pytest.raises(FileNotFoundError) as excinfo:
         run_iocsh("iocsh.bash", 2, "tests/cmds/test_acf_file_not_found.cmd")
-    assert (
-        "No such file or directory: '/opt/conda/envs/test/modules/ess/0.3.0//unknown_access.acf'"
-        == str(excinfo.value)
+    ess_dir = get_module_dir(caplog.text, "ess")
+    assert f"No such file or directory: '{ess_dir}/unknown_access.acf'" == str(
+        excinfo.value
     )
+
+
+def test_split_run():
+    ioc = IOC()
+    assert not ioc.is_running()
+
+    ioc.start()
+    assert ioc.is_running()
+
+    ioc.exit()
+    assert not ioc.is_running()
+
+
+def test_already_running():
+    with pytest.raises(IocshAlreadyRunning) as excinfo, IOC() as ioc:
+        ioc.start()
+
+    assert "IOC already running" in str(excinfo.value)
+
+
+def test_runiocsh_ca():
+    from epics import PV
+
+    with IOC("tests/cmds/test_pv.cmd"):
+        pv = PV("TEST")
+        assert int(pv.get()) == 5
+
+        pv.put("17")
+        sleep(0.1)
+        assert int(pv.get()) == 17
+
+
+def test_pvapy():
+    from pvaccess import Channel, PvDouble
+
+    with IOC("tests/cmds/test_pv.cmd"):
+        channel = Channel("TEST")
+        channel.put(PvDouble(13.0))
+        sleep(0.1)
+        assert channel.get().get()["value"] == 13.0
+
+
+def test_p4p():
+    from p4p.client.thread import Context
+
+    assert "pva" in Context.providers()
+
+    with IOC("tests/cmds/test_pv.cmd"), Context("pva") as ctxt:
+        ctxt.put("TEST", 19)
+        assert ctxt.get("TEST") == 19.0
+
+
+def test_doubleexit(caplog):
+    with caplog.at_level(logging.WARNING):
+        with IOC() as ioc:
+            pass
+        ioc.exit()
+    assert "IOC is not running" in caplog.text
 
 
 @pytest.mark.parametrize("name", ("iocsh-timeout.bash", "iocsh-stdin-closed.bash"))
