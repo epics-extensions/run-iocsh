@@ -84,7 +84,7 @@ class IOC:
         return self
 
     def __exit__(self, exc_type, exc_value, exc_traceback):
-        self.exit(self.timeout)
+        self.exit()
 
     def is_running(self):
         """
@@ -113,7 +113,7 @@ class IOC:
             cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE
         )
 
-    def exit(self, timeout=5):
+    def exit(self):
         """
         Send the exit command to the running IOC.
         """
@@ -124,7 +124,7 @@ class IOC:
         self.state = IOC.EXITED
 
         try:
-            outs, errs = self.proc.communicate(input=b"exit\n", timeout=timeout)
+            outs, errs = self.proc.communicate(input=b"exit\n", timeout=self.timeout)
         except subprocess.TimeoutExpired:
             self.proc.kill()
             # Trying to run "outs, errs = proc.communicate()" can raise:
