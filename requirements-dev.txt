@@ -1,5 +1,6 @@
 -r requirements.txt
 pytest
+pytest-cov
 pyepics
 pvapy
 p4p
