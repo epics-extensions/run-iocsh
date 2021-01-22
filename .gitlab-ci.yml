@@ -15,7 +15,7 @@ stages:
   - test
   - release
 
-test-python36:
+test-conda-python36:
   <<: *runner_tags
   stage: test
   image: registry.esss.lu.se/ics-docker/miniconda
@@ -29,7 +29,7 @@ test-python36:
     - run-iocsh -h
     - pytest -v tests
 
-test-python37:
+test-conda-python37:
   <<: *runner_tags
   stage: test
   image: registry.esss.lu.se/ics-docker/miniconda
