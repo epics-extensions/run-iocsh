@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `requirements.txt` and `requirements-dev.txt` for dependencies
 - Installed pre-commit hook for project
 - `isort`, `end-of-file-fixer`, and `trailing-whitespace` hooks to pre-commit config
+- Add `pyproject.toml` for `isort` configuration (due to `black`-`isort` conflicts)
 
 ### Changed
 - `HISTORY.rst` renamed to `CHANGELOG.md` and now follows format of **Keep a Changelog**
