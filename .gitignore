@@ -11,3 +11,5 @@ pkg/
 /docs/_build
 /.pytest_cache
 .vscode
+venv/
+.idea/

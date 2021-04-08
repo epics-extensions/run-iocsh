@@ -4,15 +4,13 @@ from setuptools import setup
 with open("README.rst") as readme_file:
     readme = readme_file.read()
 
-with open("HISTORY.rst") as history_file:
-    history = history_file.read()
-
 setup(
     name="run-iocsh",
     author="Benjamin Bertrand",
     author_email="benjamin.bertrand@esss.se",
     description="Wrapper to test iocsh",
-    long_description=readme + "\n\n" + history,
+    long_description=readme,
+    long_description_content_type="text/x-rst",
     url="https://gitlab.esss.lu.se/ics-infrastructure/run-iocsh",
     license="BSD-2 license",
     use_scm_version=True,

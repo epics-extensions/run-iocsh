@@ -1,15 +1,17 @@
 import logging
-import pytest
 import re
 from time import sleep
+
+import pytest
 from click.testing import CliRunner
+
 from run_iocsh import (
-    run_iocsh,
-    main,
+    IOC,
+    IocshAlreadyRunning,
     IocshModuleNotFoundError,
     IocshTimeoutExpired,
-    IocshAlreadyRunning,
-    IOC,
+    main,
+    run_iocsh,
 )
 
 

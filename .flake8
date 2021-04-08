@@ -1,4 +1,4 @@
 [flake8]
-# E501: let black handle line length
-# W503 is incompatible with PEP 8
-ignore = E501,W503
+ignore = E501, E203, W503
+# E501, E203: black
+# W503: PEP8
