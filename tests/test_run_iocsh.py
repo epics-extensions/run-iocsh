@@ -59,7 +59,7 @@ def test_run_iocsh_execute_cmd_file(caplog):
         run_iocsh("iocsh.bash", 2, "tests/cmds/test.cmd")
     assert "Loaded iocstats version" in caplog.text
     assert 'runScript("iocStats.iocsh", "IOCNAME=TEST1:")' in caplog.text
-    assert 'dbLoadRecords("iocAdminSoft-ess.db", "IOC=TEST1:-IocStats")' in caplog.text
+    assert 'dbLoadRecords("iocAdminSoft-ess.db", "IOC=TEST1:")' in caplog.text
 
 
 def test_run_iocsh_cmd_file_not_found():
@@ -84,8 +84,8 @@ def test_run_iocsh_autosave_file_not_found(caplog):
 def test_run_iocsh_acf_file_not_found(caplog):
     with caplog.at_level(logging.INFO), pytest.raises(FileNotFoundError) as excinfo:
         run_iocsh("iocsh.bash", 2, "tests/cmds/test_acf_file_not_found.cmd")
-    ess_dir = get_module_dir(caplog.text, "ess")
-    assert f"No such file or directory: '{ess_dir}/unknown_access.acf'" == str(
+    auth_dir = get_module_dir(caplog.text, "auth")
+    assert f"No such file or directory: '{auth_dir}/unknown_access.acf'" == str(
         excinfo.value
     )
 
