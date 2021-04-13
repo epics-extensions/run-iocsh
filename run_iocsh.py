@@ -68,7 +68,7 @@ class IocshAlreadyRunning(Error):
 
 
 class MissingSharedLibrary(Error):
-    """Eception raised when shared library is missing"""
+    """Exception raised when shared library is missing"""
 
     pass
 
