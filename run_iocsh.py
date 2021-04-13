@@ -31,6 +31,7 @@ import click
 RE_MODULE_NOT_AVAILABLE = re.compile("Module .*? not available")
 RE_CANT_OPEN = re.compile(r"(save_restore:)?\s*Can't\s*open\s*(.*?):")
 RE_CANT_OPEN_FILE = re.compile(r"(save_restore:)?\s*Can't\s*open\sfile\s\'(.*?)\'")
+RE_MISSING_SHARED_LIB = re.compile(r"(lib.*): cannot open shared object file")
 
 
 class Error(Exception):
@@ -62,6 +63,12 @@ class IocshTimeoutExpired(Error):
 
 class IocshAlreadyRunning(Error):
     """Exception raised when IOC is started a second time"""
+
+    pass
+
+
+class MissingSharedLibrary(Error):
+    """Exception raised when shared library is missing"""
 
     pass
 
@@ -162,6 +169,9 @@ class IOC:
         m = RE_CANT_OPEN_FILE.search(self.outs)
         if m and m.group(1) != "save_restore:":
             raise FileNotFoundError(f"No such file or directory: '{m.group(2)}'")
+        m = RE_MISSING_SHARED_LIB.search(self.outs)
+        if m:
+            raise MissingSharedLibrary(f"Missing shared library: '{m.group(1)}'")
         if self.proc.returncode != 0:
             raise IocshProcessError(f"Return code: {self.proc.returncode}")
 

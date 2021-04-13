@@ -10,6 +10,7 @@ from run_iocsh import (
     IocshAlreadyRunning,
     IocshModuleNotFoundError,
     IocshTimeoutExpired,
+    MissingSharedLibrary,
     main,
     run_iocsh,
 )
@@ -106,6 +107,12 @@ def test_already_running():
         ioc.start()
 
     assert "IOC already running" in str(excinfo.value)
+
+
+def test_missing_shared_lib():
+    with pytest.raises(MissingSharedLibrary) as excinfo:
+        run_iocsh("iocsh.bash", 1, "tests/cmds/test_missing_shared_lib.cmd")
+    assert "Missing shared library: 'liblib'" == str(excinfo.value)
 
 
 def test_runiocsh_ca():
