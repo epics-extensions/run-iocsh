@@ -41,34 +41,34 @@ class Error(Exception):
 
 
 class IocshModuleNotFoundError(Error):
-    """Exception raised when the required module is not found"""
+    """Exception raised when the required module is not found."""
 
     pass
 
 
 class IocshProcessError(Error):
-    """Exception raised when the iocsh script exits with a non null return code
+    """Exception raised when the iocsh script exits with a non null return code.
 
-    Only raised if no error was catched (and another exception raised)
+    Only raised if no error was catched (and another exception raised).
     """
 
     pass
 
 
 class IocshTimeoutExpired(Error):
-    """Exception raised when a timeout occurred trying to send exit to the softIOC"""
+    """Exception raised when a timeout occurred trying to send exit to the softIOC."""
 
     pass
 
 
 class IocshAlreadyRunning(Error):
-    """Exception raised when IOC is started a second time"""
+    """Exception raised when IOC is started a second time."""
 
     pass
 
 
 class MissingSharedLibrary(Error):
-    """Exception raised when shared library is missing"""
+    """Exception raised when shared library is missing."""
 
     pass
 
@@ -102,15 +102,11 @@ class IOC:
         self.exit()
 
     def is_running(self):
-        """
-        Check if the ioc is already running
-        """
+        """Check if the ioc is already running."""
         return self.proc is not None and self.proc.poll() is None
 
     def start(self):
-        """
-        Run <self.ioc_executable> iocsh script with given command-line args
-        """
+        """Run <self.ioc_executable> iocsh script with given command-line args."""
         if self.state == IOC.STARTED:
             raise IocshAlreadyRunning("IOC already running")
 
@@ -129,9 +125,7 @@ class IOC:
         )
 
     def exit(self):
-        """
-        Send the exit command to the running IOC.
-        """
+        """Send the exit command to the running IOC."""
         if self.state != self.STARTED:
             logging.warning("IOC is not running")
             return
