@@ -76,13 +76,20 @@ class MissingSharedLibrary(Error):
 class IOC:
     INITIALIZED, STARTED, EXITED = range(3)
 
-    def __init__(self, *args, ioc_executable="iocsh.bash", timeout=5.0):
+    def __init__(self, *args, ioc_executable="iocsh", timeout=5.0):
         self.proc = None
         self.outs = ""
         self.errs = ""
         self.args = args
         if shutil.which(ioc_executable) is None:
-            raise FileNotFoundError(f"No such file or directory: '{ioc_executable}'")
+            # TODO remove this when iocsh.bash is no longer supported
+            if (ioc_executable == "iocsh") and not (shutil.which("iocsh.bash") is None):
+                # Newer iocsh is missing so we rollback to the older one
+                ioc_executable = "iocsh.bash"
+            else:
+                raise FileNotFoundError(
+                    f"No such file or directory: '{ioc_executable}'"
+                )
         self.ioc_executable = ioc_executable
         self.timeout = timeout
         self.state = IOC.INITIALIZED
@@ -191,8 +198,8 @@ def run_iocsh(name, delay, *args, timeout=5):
 )
 @click.option(
     "--name",
-    default="iocsh.bash",
-    help="name of the iocsh script [default: iocsh.bash]",
+    default="iocsh",
+    help="name of the iocsh script [default: iocsh]",
 )
 @click.option(
     "--delay",
@@ -208,7 +215,7 @@ def run_iocsh(name, delay, *args, timeout=5):
 )
 @click.argument("remaining", nargs=-1)
 def main(name, delay, timeout, remaining):
-    """Run iocsch.bash and send the exit command after <delay> seconds"""
+    """Run iocsch and send the exit command after <delay> seconds"""
     logging.basicConfig(
         format="%(asctime)s %(levelname)s: %(message)s ", level=logging.DEBUG
     )

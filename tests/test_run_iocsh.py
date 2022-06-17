@@ -31,33 +31,33 @@ def test_run_iocsh_script_not_found():
 
 def test_run_iocsh_no_args(caplog):
     with caplog.at_level(logging.INFO):
-        run_iocsh("iocsh.bash", 1)
+        run_iocsh("iocsh", 1)
     assert "require_registerRecordDeviceDriver" in caplog.text
     assert "Loading module info records for require" in caplog.text
 
 
 def test_run_iocsh_load_module(caplog):
     with caplog.at_level(logging.INFO):
-        run_iocsh("iocsh.bash", 2, "-r", "iocstats")
+        run_iocsh("iocsh", 2, "-r", "iocstats")
     assert "Loaded iocstats version" in caplog.text
     assert "Loading module info records for iocstats" in caplog.text
 
 
 def test_run_iocsh_module_not_found():
     with pytest.raises(IocshModuleNotFoundError) as excinfo:
-        run_iocsh("iocsh.bash", 1, "-r", "foo")
+        run_iocsh("iocsh", 1, "-r", "foo")
     assert "Module foo not available" == str(excinfo.value)
 
 
 def test_run_iocsh_module_version_not_found():
     with pytest.raises(IocshModuleNotFoundError) as excinfo:
-        run_iocsh("iocsh.bash", 1, "-r", "iocstats,1234")
+        run_iocsh("iocsh", 1, "-r", "iocstats,1234")
     assert "Module iocstats version 1234 not available" == str(excinfo.value)
 
 
 def test_run_iocsh_execute_cmd_file(caplog):
     with caplog.at_level(logging.INFO):
-        run_iocsh("iocsh.bash", 2, "tests/cmds/test.cmd")
+        run_iocsh("iocsh", 2, "tests/cmds/test.cmd")
     assert "Loaded iocstats version" in caplog.text
     assert 'runScript("iocStats.iocsh", "IOCNAME=TEST1:")' in caplog.text
     assert 'dbLoadRecords("iocAdminSoft-ess.db", "IOC=TEST1:")' in caplog.text
@@ -65,26 +65,26 @@ def test_run_iocsh_execute_cmd_file(caplog):
 
 def test_run_iocsh_cmd_file_not_found():
     with pytest.raises(FileNotFoundError) as excinfo:
-        run_iocsh("iocsh.bash", 1, "cmds/foo.cmd")
+        run_iocsh("iocsh", 1, "cmds/foo.cmd")
     assert "No such file or directory: 'cmds/foo.cmd'" == str(excinfo.value)
 
 
 def test_run_iocsh_autosave(caplog):
     with caplog.at_level(logging.INFO):
-        run_iocsh("iocsh.bash", 2, "tests/cmds/test_autosave.cmd")
+        run_iocsh("iocsh", 2, "tests/cmds/test_autosave.cmd")
     assert "Loaded autosave version" in caplog.text
 
 
 def test_run_iocsh_autosave_file_not_found(caplog):
     with caplog.at_level(logging.INFO), pytest.raises(FileNotFoundError) as excinfo:
-        run_iocsh("iocsh.bash", 2, "tests/cmds/test_autosave_file_not_found.cmd")
+        run_iocsh("iocsh", 2, "tests/cmds/test_autosave_file_not_found.cmd")
     autosave_dir = get_module_dir(caplog.text, "autosave")
     assert f"No such file or directory: '{autosave_dir}foo.iocsh'" == str(excinfo.value)
 
 
 def test_run_iocsh_acf_file_not_found(caplog):
     with caplog.at_level(logging.INFO), pytest.raises(FileNotFoundError) as excinfo:
-        run_iocsh("iocsh.bash", 2, "tests/cmds/test_acf_file_not_found.cmd")
+        run_iocsh("iocsh", 2, "tests/cmds/test_acf_file_not_found.cmd")
     auth_dir = get_module_dir(caplog.text, "auth")
     assert f"No such file or directory: '{auth_dir}/unknown_access.acf'" == str(
         excinfo.value
@@ -111,7 +111,7 @@ def test_already_running():
 
 def test_missing_shared_lib():
     with pytest.raises(MissingSharedLibrary) as excinfo:
-        run_iocsh("iocsh.bash", 1, "tests/cmds/test_missing_shared_lib.cmd")
+        run_iocsh("iocsh", 1, "tests/cmds/test_missing_shared_lib.cmd")
     assert "Missing shared library: 'liblib'" == str(excinfo.value)
 
 
