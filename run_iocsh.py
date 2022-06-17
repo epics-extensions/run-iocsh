@@ -25,6 +25,7 @@ import shutil
 import subprocess
 import sys
 import time
+from enum import Enum
 
 import click
 
@@ -74,7 +75,7 @@ class MissingSharedLibrary(Error):
 
 
 class IOC:
-    INITIALIZED, STARTED, EXITED = range(3)
+    state_values = Enum("state_values", "INITIALIZED STARTED EXITED")
 
     def __init__(self, *args, ioc_executable="iocsh", timeout=5.0):
         self.proc = None
@@ -92,7 +93,7 @@ class IOC:
                 )
         self.ioc_executable = ioc_executable
         self.timeout = timeout
-        self.state = IOC.INITIALIZED
+        self.state = self.state_values.INITIALIZED
 
     def __enter__(self):
         self.start()
@@ -107,10 +108,10 @@ class IOC:
 
     def start(self):
         """Run <self.ioc_executable> iocsh script with given command-line args."""
-        if self.state == IOC.STARTED:
+        if self.state == self.state_values.STARTED:
             raise IocshAlreadyRunning("IOC already running")
 
-        self.state = IOC.STARTED
+        self.state = self.state_values.STARTED
 
         # Reset the output
         self.outs = ""
@@ -130,7 +131,7 @@ class IOC:
             logging.warning("IOC is not running")
             return
 
-        self.state = IOC.EXITED
+        self.state = self.state_values.EXITED
 
         try:
             outs, errs = self.proc.communicate(input=b"exit\n", timeout=self.timeout)
@@ -146,7 +147,7 @@ class IOC:
         self.errs = errs.decode("utf-8")
 
     def check_output(self):
-        if self.state != IOC.EXITED:
+        if self.state != self.state_values.EXITED:
             logging.warning("IOC has not exited yet")
             return
 
