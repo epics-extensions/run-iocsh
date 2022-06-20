@@ -15,7 +15,7 @@ setup(
     license="BSD-2 license",
     use_scm_version=True,
     setup_requires=["setuptools_scm"],
-    install_requires=["click"],
+    install_requires=[],
     py_modules=["run_iocsh"],
     include_package_data=True,
     python_requires=">=3.6.0",

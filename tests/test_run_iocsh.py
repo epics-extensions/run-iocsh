@@ -3,7 +3,6 @@ import re
 from time import sleep
 
 import pytest
-from click.testing import CliRunner
 
 from run_iocsh import (
     IOC,
@@ -11,7 +10,7 @@ from run_iocsh import (
     IocshModuleNotFoundError,
     IocshTimeoutExpired,
     MissingSharedLibrary,
-    main,
+    parse_arguments,
     run_iocsh,
 )
 
@@ -162,34 +161,21 @@ def test_run_iocsh_timeout_expired(name):
     assert "Failed to send exit to the IOC" == str(excinfo.value)
 
 
+# TODO In python 3.6 there is no way to write failing tests for argparse because
+# it exits on fail. A solution was introduced in 3.9 with the argument
+# exit_on_error. New tests should be added when our requirements change to
+# python 3.9.
 @pytest.mark.parametrize(
     "args",
     [
-        ("--name", "foo"),
-        (
-            "--name",
-            "./tests/scripts/iocsh-timeout.bash",
-            "--delay",
-            "0.1",
-            "--timeout",
-            "0.5",
-        ),
-        ("--delay", "1", "-r", "foo"),
-        ("--delay", "1", "foo.cmd"),
-        ("--delay", "1", "-r", "iocstats,1234"),
+        ("--delay", "1", "-r", "iocstats"),
+        ("--delay", "1", "tests/cmds/test.cmd"),
+        ("--name", "iocsh", "tests/cmds/test.cmd"),
+        ("--timeout", "1", "tests/cmds/test.cmd"),
+        ("--name", "iocsh.bash", "--delay", "1", "-timeout", "1", "-r", "iocstats"),
+        ("-r", "iocstats"),
     ],
 )
-def test_run_exit_with_error_code(args):
-    runner = CliRunner()
-    result = runner.invoke(main, args)
-    assert result.exit_code == 1
-
-
-@pytest.mark.parametrize(
-    "args",
-    [("--delay", "1", "-r", "iocstats"), ("--delay", "1", "tests/cmds/test.cmd")],
-)
 def test_run_exit_without_error_code(args):
-    runner = CliRunner()
-    result = runner.invoke(main, args)
-    assert result.exit_code == 0
+    # If parse_args fail the test will exit with return value != 0
+    parse_arguments(args)

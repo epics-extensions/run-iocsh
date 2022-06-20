@@ -19,6 +19,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+import argparse
 import logging
 import re
 import shutil
@@ -26,8 +27,7 @@ import subprocess
 import sys
 import time
 from enum import Enum
-
-import click
+from typing import List
 
 RE_MODULE_NOT_AVAILABLE = re.compile("Module .*? not available")
 RE_CANT_OPEN = re.compile(r"(save_restore:)?\s*Can't\s*open\s*(.*?):")
@@ -115,7 +115,7 @@ class IOC:
 
     def exit(self):
         """Send the exit command to the running IOC."""
-        if self.state != self.STARTED:
+        if self.state != self.state_values.STARTED:
             logging.warning("IOC is not running")
             return
 
@@ -173,37 +173,44 @@ def run_iocsh(name, delay, *args, timeout=5):
     ioc.check_output()
 
 
-@click.command(
-    context_settings={
-        "ignore_unknown_options": True,
-        "help_option_names": ["-h", "--help"],
-    }
-)
-@click.option(
-    "--name",
-    default="iocsh",
-    help="name of the iocsh script [default: iocsh]",
-)
-@click.option(
-    "--delay",
-    help="time (in seconds) to wait before to send the exit command [default: 5]",
-    type=float,
-    default=5,
-)
-@click.option(
-    "--timeout",
-    help="time (in seconds) to wait when sending the exit command [default: 5]",
-    type=float,
-    default=5,
-)
-@click.argument("remaining", nargs=-1)
-def main(name, delay, timeout, remaining):
-    """Run iocsch and send the exit command after <delay> seconds"""
+def parse_arguments(args: List[str] = None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Run iocsch.bash and send the exit command after <delay> seconds",
+    )
+
+    parser.add_argument(
+        "--name",
+        default="iocsh",
+        type=str,
+        help="name of the iocsh script [default: iocsh]",
+    )
+
+    parser.add_argument(
+        "--delay",
+        default=5.0,
+        type=float,
+        help="time (in seconds) to wait before sending the exit command [default: 5]",
+    )
+
+    parser.add_argument(
+        "--timeout",
+        default=5,
+        type=float,
+        help="time (in seconds) to wait when sending the exit command [default: 5]",
+    )
+
+    return parser.parse_known_args(args)
+
+
+def main():
+
+    args = parse_arguments()
+    # Run iocsch and send the exit command after <delay> seconds
     logging.basicConfig(
         format="%(asctime)s %(levelname)s: %(message)s ", level=logging.DEBUG
     )
     try:
-        run_iocsh(name, delay, *remaining, timeout=timeout)
+        run_iocsh(args[0].name, args[0].delay, *args[1], timeout=args[0].timeout)
     except (Error, FileNotFoundError) as e:
         logging.error(e)
         sys.exit(1)
