@@ -38,13 +38,9 @@ RE_MISSING_SHARED_LIB = re.compile(r"(lib.*): cannot open shared object file")
 class Error(Exception):
     """Base class for exceptions in this module."""
 
-    pass
-
 
 class IocshModuleNotFoundError(Error):
     """Exception raised when the required module is not found."""
-
-    pass
 
 
 class IocshProcessError(Error):
@@ -53,25 +49,17 @@ class IocshProcessError(Error):
     Only raised if no error was catched (and another exception raised).
     """
 
-    pass
-
 
 class IocshTimeoutExpired(Error):
     """Exception raised when a timeout occurred trying to send exit to the softIOC."""
-
-    pass
 
 
 class IocshAlreadyRunning(Error):
     """Exception raised when IOC is started a second time."""
 
-    pass
-
 
 class MissingSharedLibrary(Error):
     """Exception raised when shared library is missing."""
-
-    pass
 
 
 class IOC:
