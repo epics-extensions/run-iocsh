@@ -21,7 +21,7 @@ test-conda-python36:
   image: registry.esss.lu.se/ics-docker/miniconda
   before_script:
     - source /etc/profile.d/conda.sh
-    - conda create -n test -y -c conda-e3-virtual python=3.6 iocstats=3.1.16 autosave=5.10.0 ess=0.3.0
+    - conda create -n test -y -c conda-e3-virtual python=3.6 essioc
     - conda activate test
     - pip install -r requirements-dev.txt
     - pip install -e .
@@ -35,7 +35,7 @@ test-conda-python37:
   image: registry.esss.lu.se/ics-docker/miniconda
   before_script:
     - source /etc/profile.d/conda.sh
-    - conda create -n test -y -c conda-e3-virtual python=3.7 iocstats=3.1.16 autosave=5.10.0 ess=0.3.0
+    - conda create -n test -y -c conda-e3-virtual python=3.7 essioc
     - conda activate test
     - pip install -r requirements-dev.txt
     - pip install -e .
