@@ -84,8 +84,8 @@ def test_run_iocsh_autosave_file_not_found(caplog):
 def test_run_iocsh_acf_file_not_found(caplog):
     with caplog.at_level(logging.INFO), pytest.raises(FileNotFoundError) as excinfo:
         run_iocsh("iocsh", 2, "tests/cmds/test_acf_file_not_found.cmd")
-    auth_dir = get_module_dir(caplog.text, "auth")
-    assert f"No such file or directory: '{auth_dir}/unknown_access.acf'" == str(
+    essioc_dir = get_module_dir(caplog.text, "essioc")
+    assert f"No such file or directory: '{essioc_dir}/unknown_access.acf'" == str(
         excinfo.value
     )
 
