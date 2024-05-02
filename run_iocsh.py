@@ -63,6 +63,8 @@ class MissingSharedLibrary(Error):
 
 
 class IOC:
+    """Class to wrap IOC process."""
+
     state_values = Enum("state_values", "INITIALIZED STARTED EXITED")
 
     def __init__(
@@ -145,6 +147,7 @@ class IOC:
         self.errs = errs.decode("utf-8")
 
     def check_output(self) -> None:
+        """Log and check output from subprocess."""
         if self.state != self.state_values.EXITED:
             logging.warning("IOC has not exited yet")
             return
@@ -177,13 +180,13 @@ class IOC:
 
 
 def run_iocsh(name: str, delay: int, *args: str, timeout: float = 5) -> None:
-    """Runs an IOC, exits, and parses the output."""
+    """Run an IOC, exit, and parse the output."""
     with IOC(*args, ioc_executable=name, timeout=timeout) as ioc:
         time.sleep(delay)
     ioc.check_output()
 
 
-def parse_arguments(args: Optional[List[str]] = None) -> argparse.Namespace:
+def parse_arguments(args: Optional[List[str]] = None) -> argparse.Namespace:  # noqa: D103
     parser = argparse.ArgumentParser(
         description="Run iocsch.bash and send the exit command after <delay> seconds",
     )
@@ -212,7 +215,7 @@ def parse_arguments(args: Optional[List[str]] = None) -> argparse.Namespace:
     return parser.parse_known_args(args)
 
 
-def main() -> None:
+def main() -> None:  # noqa: D103
     args = parse_arguments()
     # Run iocsch and send the exit command after <delay> seconds
     logging.basicConfig(
