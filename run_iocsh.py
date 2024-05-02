@@ -224,8 +224,8 @@ def main() -> None:  # noqa: D103
     )
     try:
         run_iocsh(args[0].name, args[0].delay, *args[1], timeout=args[0].timeout)
-    except (Error, FileNotFoundError) as e:
-        logging.error(e)
+    except (Error, FileNotFoundError):
+        logging.exception("Found an error")
         sys.exit(1)
 
 
