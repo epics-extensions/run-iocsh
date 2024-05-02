@@ -44,7 +44,8 @@ class IocshModuleNotFoundError(Error):
 
 
 class IocshProcessError(Error):
-    """Exception raised when the iocsh script exits with a non null return code.
+    """
+    Exception raised when the iocsh script exits with a non null return code.
 
     Only raised if no error was catched (and another exception raised).
     """
