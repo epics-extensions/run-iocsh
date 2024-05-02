@@ -14,7 +14,7 @@ Wrapper to run iocsh for test.
 **run-iocsh is only meant to be used for testing!** It runs `iocsh` and sends the **exit** command after a delay.
 It raises an exception if an error occurred.
 
-Requires Python >= 3.6
+Requires Python >= 3.6 (development requires >= 3.7) and an activated e3 environment.
 
 Quick start
 -----------
