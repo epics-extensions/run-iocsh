@@ -27,7 +27,7 @@ import subprocess
 import sys
 import time
 from enum import Enum
-from typing import List
+from typing import List, Optional
 
 RE_MODULE_NOT_AVAILABLE = re.compile("Module .*? not available")
 RE_CANT_OPEN = re.compile(r"(save_restore:)?\s*Can't\s*open\s*(.*?):")
@@ -65,7 +65,12 @@ class MissingSharedLibrary(Error):
 class IOC:
     state_values = Enum("state_values", "INITIALIZED STARTED EXITED")
 
-    def __init__(self, *args, ioc_executable="iocsh", timeout=5.0):
+    def __init__(
+        self,
+        *args: str,
+        ioc_executable: str = "iocsh",
+        timeout: float = 5.0,
+    ) -> None:
         self.proc = None
         self.outs = ""
         self.errs = ""
@@ -83,18 +88,23 @@ class IOC:
         self.timeout = timeout
         self.state = self.state_values.INITIALIZED
 
-    def __enter__(self):
+    def __enter__(self) -> None:
         self.start()
         return self
 
-    def __exit__(self, exc_type, exc_value, exc_traceback):
+    def __exit__(
+        self,
+        exc_type: object,
+        exc_value: object,
+        exc_traceback: object,
+    ) -> None:
         self.exit()
 
-    def is_running(self):
+    def is_running(self) -> bool:
         """Check if the ioc is already running."""
         return self.proc is not None and self.proc.poll() is None
 
-    def start(self):
+    def start(self) -> None:
         """Run <self.ioc_executable> iocsh script with given command-line args."""
         if self.state == self.state_values.STARTED:
             raise IocshAlreadyRunning("IOC already running")
@@ -113,7 +123,7 @@ class IOC:
             cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE
         )
 
-    def exit(self):
+    def exit(self) -> None:
         """Send the exit command to the running IOC."""
         if self.state != self.state_values.STARTED:
             logging.warning("IOC is not running")
@@ -134,7 +144,7 @@ class IOC:
         self.outs = outs.decode("utf-8")
         self.errs = errs.decode("utf-8")
 
-    def check_output(self):
+    def check_output(self) -> None:
         if self.state != self.state_values.EXITED:
             logging.warning("IOC has not exited yet")
             return
@@ -166,14 +176,14 @@ class IOC:
             raise IocshProcessError(f"Return code: {self.proc.returncode}")
 
 
-def run_iocsh(name, delay, *args, timeout=5):
+def run_iocsh(name: str, delay: int, *args: str, timeout: float = 5) -> None:
     """Runs an IOC, exits, and parses the output."""
     with IOC(*args, ioc_executable=name, timeout=timeout) as ioc:
         time.sleep(delay)
     ioc.check_output()
 
 
-def parse_arguments(args: List[str] = None) -> argparse.Namespace:
+def parse_arguments(args: Optional[List[str]] = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Run iocsch.bash and send the exit command after <delay> seconds",
     )
@@ -202,8 +212,7 @@ def parse_arguments(args: List[str] = None) -> argparse.Namespace:
     return parser.parse_known_args(args)
 
 
-def main():
-
+def main() -> None:
     args = parse_arguments()
     # Run iocsch and send the exit command after <delay> seconds
     logging.basicConfig(
