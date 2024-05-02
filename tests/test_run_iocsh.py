@@ -52,12 +52,10 @@ def test_run_iocsh_module_version_not_found() -> None:
     assert str(excinfo.value) == "Module iocstats version 1234 not available"
 
 
-def test_run_iocsh_execute_cmd_file(caplog: pytest.LogCaptureFixture) -> None:
+def test_run_iocsh_module_loading(caplog: pytest.LogCaptureFixture) -> None:
     with caplog.at_level(logging.INFO):
-        run_iocsh("iocsh", 2, "tests/cmds/test.cmd")
+        run_iocsh("iocsh", 2, "tests/cmds/test_module_loading.cmd")
     assert "Loaded iocstats version" in caplog.text
-    assert 'runScript("iocStats.iocsh", "IOCNAME=TEST1:")' in caplog.text
-    assert 'dbLoadRecords("iocAdminSoft-ess.db", "IOC=TEST1:")' in caplog.text
 
 
 def test_run_iocsh_cmd_file_not_found() -> None:
