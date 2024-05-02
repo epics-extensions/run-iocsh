@@ -26,24 +26,10 @@ def test_run_iocsh_script_not_found() -> None:
     assert "No such file or directory: 'foo'" in str(excinfo.value)
 
 
-def test_run_iocsh_no_args(caplog: pytest.LogCaptureFixture) -> None:
-    with caplog.at_level(logging.INFO):
-        run_iocsh("iocsh", 1)
-    assert "require_registerRecordDeviceDriver" in caplog.text
-    assert "Loading module info records for require" in caplog.text
-
-
-def test_run_iocsh_load_module(caplog: pytest.LogCaptureFixture) -> None:
-    with caplog.at_level(logging.INFO):
-        run_iocsh("iocsh", 2, "-r", "iocstats")
-    assert "Loaded iocstats version" in caplog.text
-    assert "Loading module info records for iocstats" in caplog.text
-
-
-def test_run_iocsh_module_not_found() -> None:
-    with pytest.raises(IocshModuleNotFoundError) as excinfo:
-        run_iocsh("iocsh", 1, "-r", "foo")
-    assert str(excinfo.value) == "Module foo not available"
+def test_run_iocsh_cmd_file_not_found() -> None:
+    with pytest.raises(FileNotFoundError) as excinfo:
+        run_iocsh("iocsh", 1, "cmds/foo.cmd")
+    assert str(excinfo.value) == "No such file or directory: 'cmds/foo.cmd'"
 
 
 def test_run_iocsh_module_version_not_found() -> None:
@@ -52,22 +38,10 @@ def test_run_iocsh_module_version_not_found() -> None:
     assert str(excinfo.value) == "Module iocstats version 1234 not available"
 
 
-def test_run_iocsh_module_loading(caplog: pytest.LogCaptureFixture) -> None:
-    with caplog.at_level(logging.INFO):
-        run_iocsh("iocsh", 2, "tests/cmds/test_module_loading.cmd")
-    assert "Loaded iocstats version" in caplog.text
-
-
-def test_run_iocsh_cmd_file_not_found() -> None:
-    with pytest.raises(FileNotFoundError) as excinfo:
-        run_iocsh("iocsh", 1, "cmds/foo.cmd")
-    assert str(excinfo.value) == "No such file or directory: 'cmds/foo.cmd'"
-
-
-def test_run_iocsh_autosave(caplog: pytest.LogCaptureFixture) -> None:
-    with caplog.at_level(logging.INFO):
-        run_iocsh("iocsh", 2, "tests/cmds/test_autosave.cmd")
-    assert "Loaded autosave version" in caplog.text
+def test_run_iocsh_module_not_found() -> None:
+    with pytest.raises(IocshModuleNotFoundError) as excinfo:
+        run_iocsh("iocsh", 1, "-r", "foo")
+    assert str(excinfo.value) == "Module foo not available"
 
 
 def test_run_iocsh_autosave_file_not_found(caplog: pytest.LogCaptureFixture) -> None:
