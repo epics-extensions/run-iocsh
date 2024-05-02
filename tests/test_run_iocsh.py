@@ -20,46 +20,6 @@ def get_module_dir(logtext: str, module: str) -> str:
     return match.group(1) if match else ""
 
 
-def test_run_iocsh_script_not_found() -> None:
-    with pytest.raises(FileNotFoundError) as excinfo:
-        run_iocsh("foo", 1)
-    assert "No such file or directory: 'foo'" in str(excinfo.value)
-
-
-def test_run_iocsh_cmd_file_not_found() -> None:
-    with pytest.raises(FileNotFoundError) as excinfo:
-        run_iocsh("iocsh", 1, "cmds/foo.cmd")
-    assert str(excinfo.value) == "No such file or directory: 'cmds/foo.cmd'"
-
-
-def test_run_iocsh_module_version_not_found() -> None:
-    with pytest.raises(IocshModuleNotFoundError) as excinfo:
-        run_iocsh("iocsh", 1, "-r", "iocstats,1234")
-    assert str(excinfo.value) == "Module iocstats version 1234 not available"
-
-
-def test_run_iocsh_module_not_found() -> None:
-    with pytest.raises(IocshModuleNotFoundError) as excinfo:
-        run_iocsh("iocsh", 1, "-r", "foo")
-    assert str(excinfo.value) == "Module foo not available"
-
-
-def test_run_iocsh_autosave_file_not_found(caplog: pytest.LogCaptureFixture) -> None:
-    with caplog.at_level(logging.INFO), pytest.raises(FileNotFoundError) as excinfo:
-        run_iocsh("iocsh", 2, "tests/cmds/test_autosave_file_not_found.cmd")
-    autosave_dir = get_module_dir(caplog.text, "autosave")
-    assert f"No such file or directory: '{autosave_dir}foo.iocsh'" == str(excinfo.value)
-
-
-def test_run_iocsh_acf_file_not_found(caplog: pytest.LogCaptureFixture) -> None:
-    with caplog.at_level(logging.INFO), pytest.raises(FileNotFoundError) as excinfo:
-        run_iocsh("iocsh", 2, "tests/cmds/test_acf_file_not_found.cmd")
-    essioc_dir = get_module_dir(caplog.text, "essioc")
-    assert f"No such file or directory: '{essioc_dir}/unknown_access.acf'" == str(
-        excinfo.value
-    )
-
-
 def test_split_run() -> None:
     ioc = IOC()
     assert not ioc.is_running()
@@ -78,12 +38,6 @@ def test_already_running() -> None:
     assert "IOC already running" in str(excinfo.value)
 
 
-def test_missing_shared_lib() -> None:
-    with pytest.raises(MissingSharedLibraryError) as excinfo:
-        run_iocsh("iocsh", 1, "tests/cmds/test_missing_shared_lib.cmd")
-    assert str(excinfo.value) == "Missing shared library: 'liblib'"
-
-
 def test_doubleexit(caplog: pytest.LogCaptureFixture) -> None:
     with caplog.at_level(logging.WARNING):
         with IOC() as ioc:
@@ -92,11 +46,58 @@ def test_doubleexit(caplog: pytest.LogCaptureFixture) -> None:
     assert "IOC is not running" in caplog.text
 
 
-@pytest.mark.parametrize("name", ["iocsh-timeout.bash", "iocsh-stdin-closed.bash"])
-def test_run_iocsh_timeout_expired(name: str) -> None:
-    with pytest.raises(IocshTimeoutExpiredError) as excinfo:
-        run_iocsh(f"./tests/scripts/{name}", 0.1, timeout=0.5)
-    assert str(excinfo.value) == "Failed to send exit to the IOC"
+class TestExceptions:
+    def test_run_iocsh_script_not_found(self) -> None:
+        with pytest.raises(FileNotFoundError) as excinfo:
+            run_iocsh("foo", 1)
+        assert "No such file or directory: 'foo'" in str(excinfo.value)
+
+    def test_run_iocsh_cmd_file_not_found(self) -> None:
+        with pytest.raises(FileNotFoundError) as excinfo:
+            run_iocsh("iocsh", 1, "cmds/foo.cmd")
+        assert str(excinfo.value) == "No such file or directory: 'cmds/foo.cmd'"
+
+    def test_run_iocsh_module_version_not_found(self) -> None:
+        with pytest.raises(IocshModuleNotFoundError) as excinfo:
+            run_iocsh("iocsh", 1, "-r", "iocstats,1234")
+        assert str(excinfo.value) == "Module iocstats version 1234 not available"
+
+    def test_run_iocsh_module_not_found(self) -> None:
+        with pytest.raises(IocshModuleNotFoundError) as excinfo:
+            run_iocsh("iocsh", 1, "-r", "foo")
+        assert str(excinfo.value) == "Module foo not available"
+
+    def test_run_iocsh_autosave_file_not_found(
+        self,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        with caplog.at_level(logging.INFO), pytest.raises(FileNotFoundError) as excinfo:
+            run_iocsh("iocsh", 2, "tests/cmds/test_autosave_file_not_found.cmd")
+        autosave_dir = get_module_dir(caplog.text, "autosave")
+        assert f"No such file or directory: '{autosave_dir}foo.iocsh'" == str(
+            excinfo.value
+        )
+
+    def test_run_iocsh_acf_file_not_found(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        with caplog.at_level(logging.INFO), pytest.raises(FileNotFoundError) as excinfo:
+            run_iocsh("iocsh", 2, "tests/cmds/test_acf_file_not_found.cmd")
+        essioc_dir = get_module_dir(caplog.text, "essioc")
+        assert f"No such file or directory: '{essioc_dir}/unknown_access.acf'" == str(
+            excinfo.value
+        )
+
+    def test_missing_shared_lib(self) -> None:
+        with pytest.raises(MissingSharedLibraryError) as excinfo:
+            run_iocsh("iocsh", 1, "tests/cmds/test_missing_shared_lib.cmd")
+        assert str(excinfo.value) == "Missing shared library: 'liblib'"
+
+    @pytest.mark.parametrize("name", ["iocsh-timeout.bash", "iocsh-stdin-closed.bash"])
+    def test_run_iocsh_timeout_expired(self, name: str) -> None:
+        with pytest.raises(IocshTimeoutExpiredError) as excinfo:
+            run_iocsh(f"./tests/scripts/{name}", 0.1, timeout=0.5)
+        assert str(excinfo.value) == "Failed to send exit to the IOC"
 
 
 # TODO In python 3.6 there is no way to write failing tests for argparse because
