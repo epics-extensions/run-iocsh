@@ -120,7 +120,7 @@ class IOC:
         self._exited = False
 
         cmd = [self.ioc_executable] + list(self.args)
-        logging.debug(f"Running: {cmd}")
+        logging.debug("Running: %s", cmd)
         self.proc = subprocess.Popen(
             cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE
         )
@@ -162,7 +162,7 @@ class IOC:
             + self.errs
             + "=============================================="
         )
-        logging.debug(f"return code: {self.proc.returncode}")
+        logging.debug("return code: %s", self.proc.returncode)
         m = RE_MODULE_NOT_AVAILABLE.search(self.outs)
         if m:
             raise IocshModuleNotFoundError(m.group(0))
