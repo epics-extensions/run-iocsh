@@ -50,15 +50,15 @@ class IocshProcessError(Error):
     """
 
 
-class IocshTimeoutExpired(Error):
+class IocshTimeoutExpiredError(Error):
     """Exception raised when a timeout occurred trying to send exit to the softIOC."""
 
 
-class IocshAlreadyRunning(Error):
+class IocshAlreadyRunningError(Error):
     """Exception raised when IOC is started a second time."""
 
 
-class MissingSharedLibrary(Error):
+class MissingSharedLibraryError(Error):
     """Exception raised when shared library is missing."""
 
 
@@ -109,7 +109,7 @@ class IOC:
     def start(self) -> None:
         """Run <self.ioc_executable> iocsh script with given command-line args."""
         if self.state == self.state_values.STARTED:
-            raise IocshAlreadyRunning("IOC already running")
+            raise IocshAlreadyRunningError("IOC already running")
 
         self.state = self.state_values.STARTED
 
@@ -141,7 +141,7 @@ class IOC:
             # ValueError: Invalid file object: <_io.BufferedReader name=7>
             # when stdin is already closed.
             # In case of timeout, we don't care and just raise an exception
-            raise IocshTimeoutExpired("Failed to send exit to the IOC")
+            raise IocshTimeoutExpiredError("Failed to send exit to the IOC")
 
         self.outs = outs.decode("utf-8")
         self.errs = errs.decode("utf-8")
@@ -174,7 +174,7 @@ class IOC:
             raise FileNotFoundError(f"No such file or directory: '{m.group(2)}'")
         m = RE_MISSING_SHARED_LIB.search(self.outs)
         if m:
-            raise MissingSharedLibrary(f"Missing shared library: '{m.group(1)}'")
+            raise MissingSharedLibraryError(f"Missing shared library: '{m.group(1)}'")
         if self.proc.returncode != 0:
             raise IocshProcessError(f"Return code: {self.proc.returncode}")
 

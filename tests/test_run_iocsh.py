@@ -7,10 +7,10 @@ import pytest
 
 from run_iocsh import (
     IOC,
-    IocshAlreadyRunning,
+    IocshAlreadyRunningError,
     IocshModuleNotFoundError,
-    IocshTimeoutExpired,
-    MissingSharedLibrary,
+    IocshTimeoutExpiredError,
+    MissingSharedLibraryError,
     parse_arguments,
     run_iocsh,
 )
@@ -103,14 +103,14 @@ def test_split_run() -> None:
 
 
 def test_already_running() -> None:
-    with pytest.raises(IocshAlreadyRunning) as excinfo, IOC() as ioc:
+    with pytest.raises(IocshAlreadyRunningError) as excinfo, IOC() as ioc:
         ioc.start()
 
     assert "IOC already running" in str(excinfo.value)
 
 
 def test_missing_shared_lib() -> None:
-    with pytest.raises(MissingSharedLibrary) as excinfo:
+    with pytest.raises(MissingSharedLibraryError) as excinfo:
         run_iocsh("iocsh", 1, "tests/cmds/test_missing_shared_lib.cmd")
     assert "Missing shared library: 'liblib'" == str(excinfo.value)
 
@@ -157,7 +157,7 @@ def test_doubleexit(caplog: pytest.LogCaptureFixture) -> None:
 
 @pytest.mark.parametrize("name", ["iocsh-timeout.bash", "iocsh-stdin-closed.bash"])
 def test_run_iocsh_timeout_expired(name: str) -> None:
-    with pytest.raises(IocshTimeoutExpired) as excinfo:
+    with pytest.raises(IocshTimeoutExpiredError) as excinfo:
         run_iocsh(f"./tests/scripts/{name}", 0.1, timeout=0.5)
     assert "Failed to send exit to the IOC" == str(excinfo.value)
 
