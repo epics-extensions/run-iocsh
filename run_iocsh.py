@@ -79,7 +79,7 @@ class IOC:
         self.args = args
         if shutil.which(ioc_executable) is None:
             # TODO remove this when iocsh.bash is no longer supported
-            if (ioc_executable == "iocsh") and not (shutil.which("iocsh.bash") is None):
+            if (ioc_executable == "iocsh") and shutil.which("iocsh.bash") is not None:
                 # Newer iocsh is missing so we rollback to the older one
                 ioc_executable = "iocsh.bash"
             else:

@@ -46,13 +46,13 @@ def test_run_iocsh_load_module(caplog: pytest.LogCaptureFixture) -> None:
 def test_run_iocsh_module_not_found() -> None:
     with pytest.raises(IocshModuleNotFoundError) as excinfo:
         run_iocsh("iocsh", 1, "-r", "foo")
-    assert "Module foo not available" == str(excinfo.value)
+    assert str(excinfo.value) == "Module foo not available"
 
 
 def test_run_iocsh_module_version_not_found() -> None:
     with pytest.raises(IocshModuleNotFoundError) as excinfo:
         run_iocsh("iocsh", 1, "-r", "iocstats,1234")
-    assert "Module iocstats version 1234 not available" == str(excinfo.value)
+    assert str(excinfo.value) == "Module iocstats version 1234 not available"
 
 
 def test_run_iocsh_execute_cmd_file(caplog: pytest.LogCaptureFixture) -> None:
@@ -66,7 +66,7 @@ def test_run_iocsh_execute_cmd_file(caplog: pytest.LogCaptureFixture) -> None:
 def test_run_iocsh_cmd_file_not_found() -> None:
     with pytest.raises(FileNotFoundError) as excinfo:
         run_iocsh("iocsh", 1, "cmds/foo.cmd")
-    assert "No such file or directory: 'cmds/foo.cmd'" == str(excinfo.value)
+    assert str(excinfo.value) == "No such file or directory: 'cmds/foo.cmd'"
 
 
 def test_run_iocsh_autosave(caplog: pytest.LogCaptureFixture) -> None:
@@ -112,7 +112,7 @@ def test_already_running() -> None:
 def test_missing_shared_lib() -> None:
     with pytest.raises(MissingSharedLibraryError) as excinfo:
         run_iocsh("iocsh", 1, "tests/cmds/test_missing_shared_lib.cmd")
-    assert "Missing shared library: 'liblib'" == str(excinfo.value)
+    assert str(excinfo.value) == "Missing shared library: 'liblib'"
 
 
 def test_runiocsh_ca() -> None:
@@ -159,7 +159,7 @@ def test_doubleexit(caplog: pytest.LogCaptureFixture) -> None:
 def test_run_iocsh_timeout_expired(name: str) -> None:
     with pytest.raises(IocshTimeoutExpiredError) as excinfo:
         run_iocsh(f"./tests/scripts/{name}", 0.1, timeout=0.5)
-    assert "Failed to send exit to the IOC" == str(excinfo.value)
+    assert str(excinfo.value) == "Failed to send exit to the IOC"
 
 
 # TODO In python 3.6 there is no way to write failing tests for argparse because
