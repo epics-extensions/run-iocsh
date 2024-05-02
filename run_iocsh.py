@@ -136,13 +136,13 @@ class IOC:
 
         try:
             outs, errs = self.proc.communicate(input=b"exit\n", timeout=self.timeout)
-        except subprocess.TimeoutExpired:
+        except subprocess.TimeoutExpired as e:
             self.proc.kill()
             # Trying to run "outs, errs = proc.communicate()" can raise:
             # ValueError: Invalid file object: <_io.BufferedReader name=7>
             # when stdin is already closed.
             # In case of timeout, we don't care and just raise an exception
-            raise IocshTimeoutExpiredError("Failed to send exit to the IOC")
+            raise IocshTimeoutExpiredError("Failed to send exit to the IOC") from e
 
         self.outs = outs.decode("utf-8")
         self.errs = errs.decode("utf-8")
