@@ -118,11 +118,13 @@ def test_runiocsh_ca() -> None:
 
     with IOC("tests/cmds/test_pv.cmd"):
         pv = PV("TEST")
-        assert int(pv.get()) == 5
+        value_in_db = 5
+        assert int(pv.get()) == value_in_db
 
-        pv.put("17")
+        new_value = 17
+        pv.put(str(new_value))
         sleep(0.1)
-        assert int(pv.get()) == 17
+        assert int(pv.get()) == new_value
 
 
 def test_pvapy() -> None:
@@ -130,9 +132,10 @@ def test_pvapy() -> None:
 
     with IOC("tests/cmds/test_pv.cmd"):
         channel = Channel("TEST")
-        channel.put(PvDouble(13.0))
+        value = 13.0
+        channel.put(PvDouble(value))
         sleep(0.1)
-        assert channel.get().get()["value"] == 13.0
+        assert channel.get().get()["value"] == value
 
 
 def test_p4p() -> None:
@@ -141,8 +144,9 @@ def test_p4p() -> None:
     assert "pva" in Context.providers()
 
     with IOC("tests/cmds/test_pv.cmd"), Context("pva") as ctxt:
-        ctxt.put("TEST", 19)
-        assert ctxt.get("TEST") == 19.0
+        value = 19
+        ctxt.put("TEST", value)
+        assert ctxt.get("TEST") == value
 
 
 def test_doubleexit(caplog: pytest.LogCaptureFixture) -> None:
