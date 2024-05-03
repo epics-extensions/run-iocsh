@@ -11,4 +11,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Initial release
 
 
-[Unreleased]: https://gitlab.esss.lu.se/ics-infrastructure/run-iocsh/compare/0.7.0...HEAD
+[Unreleased]: https://gitlab.esss.lu.se/ics-infrastructure/run-iocsh/compare/0.1.0...HEAD
