@@ -1,14 +1,6 @@
 run-iocsh
 =========
 
-.. image:: https://img.shields.io/badge/code%20style-black-000000.svg
-    :target: https://github.com/ambv/black
-
-.. image:: https://gitlab.esss.lu.se/ics-infrastructure/run-iocsh/badges/master/pipeline.svg
-
-.. image:: https://gitlab.esss.lu.se/ics-infrastructure/run-iocsh/badges/master/coverage.svg
-
-
 Wrapper to run iocsh for test.
 
 **run-iocsh is only meant to be used for testing!** It runs `iocsh` and sends the **exit** command after a delay.
@@ -24,10 +16,10 @@ Quick start
     $ run-iocsh -h
     Usage: run-iocsh [OPTIONS] [REMAINING]...
 
-    Run iocsch.bash and send the exit command after <delay> seconds
+    Run iocsh and send the exit command after <delay> seconds
 
     Options:
-      --name TEXT      name of the iocsh script [default: iocsh]
+      --name TEXT      name of the executable [default: iocsh]
       --delay FLOAT    time (in seconds) to wait before to send the exit command
                        [default: 5]
 
