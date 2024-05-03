@@ -1,4 +1,5 @@
-#!/usr/bin/env python3
+"""Singular module and CLI entry point for package."""
+
 # Copyright (c) 2024 European Spallation Source ERIC
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
