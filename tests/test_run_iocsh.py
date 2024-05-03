@@ -1,4 +1,5 @@
 import logging
+from pathlib import Path
 from typing import Tuple
 
 import pytest
@@ -49,9 +50,10 @@ class TestExceptions:
         assert "No such file or directory: 'foo'" in str(excinfo.value)
 
     def test_run_iocsh_cmd_file_not_found(self) -> None:
+        filename = "does-not-exist.cmd"
         with pytest.raises(FileNotFoundError) as excinfo:
-            run_iocsh("iocsh", 1, "cmds/foo.cmd")
-        assert str(excinfo.value) == "No such file or directory: 'cmds/foo.cmd'"
+            run_iocsh("iocsh", 1, filename)
+        assert str(excinfo.value) == f"No such file or directory: '{filename}'"
 
     def test_run_iocsh_module_version_not_found(self) -> None:
         with pytest.raises(IocshModuleNotFoundError) as excinfo:
@@ -65,28 +67,59 @@ class TestExceptions:
 
     def test_run_iocsh_autosave_file_not_found(
         self,
+        tmp_path: Path,
         caplog: pytest.LogCaptureFixture,
     ) -> None:
+        file_contents = """\
+require autosave
+
+epicsEnvSet("IOCNAME", "myioc")
+epicsEnvSet("AS_TOP", "/tmp")
+
+iocshLoad("$(autosave_DIR)/autosave.iocsh", "AS_TOP=$(AS_TOP), IOCNAME=$(IOCNAME)")
+iocshLoad("$(autosave_DIR)foo.iocsh", "AS_TOP=$(AS_TOP), IOCNAME=$(IOCNAME)")
+"""
+        tmp_file = tmp_path / "test_autosave_file_not_found.cmd"
+        tmp_file.write_text(file_contents)
+
         with caplog.at_level(logging.INFO), pytest.raises(FileNotFoundError) as excinfo:
-            run_iocsh("iocsh", 2, "tests/cmds/test_autosave_file_not_found.cmd")
+            run_iocsh("iocsh", 2, tmp_file.as_posix())
         autosave_dir = get_module_dir(caplog.text, "autosave")
         assert f"No such file or directory: '{autosave_dir}foo.iocsh'" == str(
             excinfo.value
         )
 
     def test_run_iocsh_acf_file_not_found(
-        self, caplog: pytest.LogCaptureFixture
+        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
     ) -> None:
+        file_contents = """\
+require essioc
+
+epicsEnvSet("PATH_TO_ASG_FILES", "$(essioc_DIR)")
+# Use non existing file
+epicsEnvSet("ASG_FILENAME", "$(ASG_FILENAME=unknown_access.acf)")
+
+iocshLoad("$(essioc_DIR)/accessSecurityGroup.iocsh", "ASG_PATH=$(PATH_TO_ASG_FILES),ASG_FILE=$(ASG_FILENAME)")
+"""  # noqa: E501
+        tmp_file = tmp_path / "test_acf_file_not_found.cmd"
+        tmp_file.write_text(file_contents)
+
         with caplog.at_level(logging.INFO), pytest.raises(FileNotFoundError) as excinfo:
-            run_iocsh("iocsh", 2, "tests/cmds/test_acf_file_not_found.cmd")
+            run_iocsh("iocsh", 2, tmp_file.as_posix())
         essioc_dir = get_module_dir(caplog.text, "essioc")
         assert f"No such file or directory: '{essioc_dir}/unknown_access.acf'" == str(
             excinfo.value
         )
 
-    def test_missing_shared_lib(self) -> None:
+    def test_missing_shared_lib(self, tmp_path: Path) -> None:
+        file_contents = """\
+echo "liblib: cannot open shared object file"
+"""
+        tmp_file = tmp_path / "test_missing_shared_lib.cmd"
+        tmp_file.write_text(file_contents)
+
         with pytest.raises(MissingSharedLibraryError) as excinfo:
-            run_iocsh("iocsh", 1, "tests/cmds/test_missing_shared_lib.cmd")
+            run_iocsh("iocsh", 1, tmp_file.as_posix())
         assert str(excinfo.value) == "Missing shared library: 'liblib'"
 
     @pytest.mark.parametrize("name", ["iocsh-timeout.bash", "iocsh-stdin-closed.bash"])
