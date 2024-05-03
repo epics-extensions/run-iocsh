@@ -1,5 +1,4 @@
 import logging
-import re
 from typing import Tuple
 
 import pytest
@@ -14,10 +13,7 @@ from run_iocsh import (
     run_iocsh,
 )
 
-
-def get_module_dir(logtext: str, module: str) -> str:
-    match = re.search(f"Module {module} version " + r".* found in (.*)\n", logtext)
-    return match.group(1) if match else ""
+from .utils import get_module_dir
 
 
 def test_split_run() -> None:
