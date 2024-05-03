@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Copyright (c) 2019 European Spallation Source ERIC
+# Copyright (c) 2024 European Spallation Source ERIC
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -27,7 +27,7 @@ import subprocess
 import sys
 import time
 from enum import Enum
-from typing import List
+from typing import List, Optional
 
 RE_MODULE_NOT_AVAILABLE = re.compile("Module .*? not available")
 RE_CANT_OPEN = re.compile(r"(save_restore:)?\s*Can't\s*open\s*(.*?):")
@@ -44,35 +44,43 @@ class IocshModuleNotFoundError(Error):
 
 
 class IocshProcessError(Error):
-    """Exception raised when the iocsh script exits with a non null return code.
+    """
+    Exception raised when the iocsh script exits with a non null return code.
 
     Only raised if no error was catched (and another exception raised).
     """
 
 
-class IocshTimeoutExpired(Error):
+class IocshTimeoutExpiredError(Error):
     """Exception raised when a timeout occurred trying to send exit to the softIOC."""
 
 
-class IocshAlreadyRunning(Error):
+class IocshAlreadyRunningError(Error):
     """Exception raised when IOC is started a second time."""
 
 
-class MissingSharedLibrary(Error):
+class MissingSharedLibraryError(Error):
     """Exception raised when shared library is missing."""
 
 
 class IOC:
+    """Class to wrap IOC process."""
+
     state_values = Enum("state_values", "INITIALIZED STARTED EXITED")
 
-    def __init__(self, *args, ioc_executable="iocsh", timeout=5.0):
+    def __init__(
+        self,
+        *args: str,
+        ioc_executable: str = "iocsh",
+        timeout: float = 5.0,
+    ) -> None:
         self.proc = None
         self.outs = ""
         self.errs = ""
         self.args = args
         if shutil.which(ioc_executable) is None:
             # TODO remove this when iocsh.bash is no longer supported
-            if (ioc_executable == "iocsh") and not (shutil.which("iocsh.bash") is None):
+            if (ioc_executable == "iocsh") and shutil.which("iocsh.bash") is not None:
                 # Newer iocsh is missing so we rollback to the older one
                 ioc_executable = "iocsh.bash"
             else:
@@ -83,21 +91,26 @@ class IOC:
         self.timeout = timeout
         self.state = self.state_values.INITIALIZED
 
-    def __enter__(self):
+    def __enter__(self) -> None:
         self.start()
         return self
 
-    def __exit__(self, exc_type, exc_value, exc_traceback):
+    def __exit__(
+        self,
+        exc_type: object,
+        exc_value: object,
+        exc_traceback: object,
+    ) -> None:
         self.exit()
 
-    def is_running(self):
+    def is_running(self) -> bool:
         """Check if the ioc is already running."""
         return self.proc is not None and self.proc.poll() is None
 
-    def start(self):
+    def start(self) -> None:
         """Run <self.ioc_executable> iocsh script with given command-line args."""
         if self.state == self.state_values.STARTED:
-            raise IocshAlreadyRunning("IOC already running")
+            raise IocshAlreadyRunningError("IOC already running")
 
         self.state = self.state_values.STARTED
 
@@ -107,13 +120,13 @@ class IOC:
 
         self._exited = False
 
-        cmd = [self.ioc_executable] + list(self.args)
-        logging.debug(f"Running: {cmd}")
+        cmd = [self.ioc_executable, *self.args]
+        logging.debug("Running: %s", " ".join(cmd))
         self.proc = subprocess.Popen(
             cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE
         )
 
-    def exit(self):
+    def exit(self) -> None:
         """Send the exit command to the running IOC."""
         if self.state != self.state_values.STARTED:
             logging.warning("IOC is not running")
@@ -123,18 +136,19 @@ class IOC:
 
         try:
             outs, errs = self.proc.communicate(input=b"exit\n", timeout=self.timeout)
-        except subprocess.TimeoutExpired:
+        except subprocess.TimeoutExpired as e:
             self.proc.kill()
             # Trying to run "outs, errs = proc.communicate()" can raise:
             # ValueError: Invalid file object: <_io.BufferedReader name=7>
             # when stdin is already closed.
             # In case of timeout, we don't care and just raise an exception
-            raise IocshTimeoutExpired("Failed to send exit to the IOC")
+            raise IocshTimeoutExpiredError("Failed to send exit to the IOC") from e
 
         self.outs = outs.decode("utf-8")
         self.errs = errs.decode("utf-8")
 
-    def check_output(self):
+    def check_output(self) -> None:
+        """Log and check output from subprocess."""
         if self.state != self.state_values.EXITED:
             logging.warning("IOC has not exited yet")
             return
@@ -149,7 +163,7 @@ class IOC:
             + self.errs
             + "=============================================="
         )
-        logging.debug(f"return code: {self.proc.returncode}")
+        logging.debug("return code: %s", self.proc.returncode)
         m = RE_MODULE_NOT_AVAILABLE.search(self.outs)
         if m:
             raise IocshModuleNotFoundError(m.group(0))
@@ -161,19 +175,19 @@ class IOC:
             raise FileNotFoundError(f"No such file or directory: '{m.group(2)}'")
         m = RE_MISSING_SHARED_LIB.search(self.outs)
         if m:
-            raise MissingSharedLibrary(f"Missing shared library: '{m.group(1)}'")
+            raise MissingSharedLibraryError(f"Missing shared library: '{m.group(1)}'")
         if self.proc.returncode != 0:
             raise IocshProcessError(f"Return code: {self.proc.returncode}")
 
 
-def run_iocsh(name, delay, *args, timeout=5):
-    """Runs an IOC, exits, and parses the output."""
+def run_iocsh(name: str, delay: int, *args: str, timeout: float = 5) -> None:
+    """Run an IOC, exit, and parse the output."""
     with IOC(*args, ioc_executable=name, timeout=timeout) as ioc:
         time.sleep(delay)
     ioc.check_output()
 
 
-def parse_arguments(args: List[str] = None) -> argparse.Namespace:
+def parse_arguments(args: Optional[List[str]] = None) -> argparse.Namespace:  # noqa: D103
     parser = argparse.ArgumentParser(
         description="Run iocsch.bash and send the exit command after <delay> seconds",
     )
@@ -202,8 +216,7 @@ def parse_arguments(args: List[str] = None) -> argparse.Namespace:
     return parser.parse_known_args(args)
 
 
-def main():
-
+def main() -> None:  # noqa: D103
     args = parse_arguments()
     # Run iocsch and send the exit command after <delay> seconds
     logging.basicConfig(
@@ -211,8 +224,8 @@ def main():
     )
     try:
         run_iocsh(args[0].name, args[0].delay, *args[1], timeout=args[0].timeout)
-    except (Error, FileNotFoundError) as e:
-        logging.error(e)
+    except (Error, FileNotFoundError):
+        logging.exception("Found an error")
         sys.exit(1)
 
 
