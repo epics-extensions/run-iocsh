@@ -47,3 +47,13 @@ test-conda-python37:
   extends: .test-conda
   variables:
     PYTHON_VERSION: 3.7
+
+test-conda-python38:
+  extends: .test-conda
+  variables:
+    PYTHON_VERSION: 3.8
+
+test-conda-python39:
+  extends: .test-conda
+  variables:
+    PYTHON_VERSION: 3.9
