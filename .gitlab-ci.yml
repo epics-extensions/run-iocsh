@@ -39,13 +39,14 @@ test-conda-python36:
   extends: .test-conda
   script:
     - run-iocsh -h
-    - pytest -v --cov=run_iocsh tests
+    - pytest -v --cov-report xml:coverage.xml --cov=run_iocsh --junitxml=report.xml
   coverage: '/(?i)total.*? (100(?:\.0+)?\%|[1-9]?\d(?:\.\d+)?\%)$/'
   artifacts:
     reports:
       coverage_report:
         coverage_format: cobertura
         path: coverage.xml
+      junit: report.xml
   variables:
     PYTHON_VERSION: 3.6
 
