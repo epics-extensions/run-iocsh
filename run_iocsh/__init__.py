@@ -36,15 +36,15 @@ RE_CANT_OPEN_FILE = re.compile(r"(save_restore:)?\s*Can't\s*open\sfile\s\'(.*?)\
 RE_MISSING_SHARED_LIB = re.compile(r"(lib.*): cannot open shared object file")
 
 
-class Error(Exception):
+class RunIocshError(Exception):
     """Base class for exceptions in this module."""
 
 
-class IocshModuleNotFoundError(Error):
+class IocshModuleNotFoundError(RunIocshError):
     """Exception raised when the required module is not found."""
 
 
-class IocshProcessError(Error):
+class IocshProcessError(RunIocshError):
     """
     Exception raised when the iocsh script exits with a non null return code.
 
@@ -52,15 +52,15 @@ class IocshProcessError(Error):
     """
 
 
-class IocshTimeoutExpiredError(Error):
+class IocshTimeoutExpiredError(RunIocshError):
     """Exception raised when a timeout occurred trying to send exit to the softIOC."""
 
 
-class IocshAlreadyRunningError(Error):
+class IocshAlreadyRunningError(RunIocshError):
     """Exception raised when IOC is started a second time."""
 
 
-class MissingSharedLibraryError(Error):
+class MissingSharedLibraryError(RunIocshError):
     """Exception raised when shared library is missing."""
 
 
@@ -218,7 +218,7 @@ def main() -> None:  # noqa: D103
     )
     try:
         run_iocsh(args[0].name, args[0].delay, *args[1], timeout=args[0].timeout)
-    except (Error, FileNotFoundError):
+    except (RunIocshError, FileNotFoundError):
         logging.exception("Found an error")
         sys.exit(1)
 
