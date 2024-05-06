@@ -79,15 +79,8 @@ class IOC:
         self.outs = ""
         self.errs = ""
         self.args = args
-        if shutil.which(ioc_executable) is None:
-            # TODO remove this when iocsh.bash is no longer supported
-            if (ioc_executable == "iocsh") and shutil.which("iocsh.bash") is not None:
-                # Newer iocsh is missing so we rollback to the older one
-                ioc_executable = "iocsh.bash"
-            else:
-                raise FileNotFoundError(
-                    f"No such file or directory: '{ioc_executable}'"
-                )
+        if not shutil.which(ioc_executable):
+            raise FileNotFoundError(f"No such file or directory: '{ioc_executable}'")
         self.ioc_executable = ioc_executable
         self.timeout = timeout
         self.state = self.state_values.INITIALIZED
@@ -190,7 +183,7 @@ def run_iocsh(name: str, delay: int, *args: str, timeout: float = 5) -> None:
 
 def parse_arguments(args: Optional[List[str]] = None) -> argparse.Namespace:  # noqa: D103
     parser = argparse.ArgumentParser(
-        description="Run iocsch.bash and send the exit command after <delay> seconds",
+        description="Run iocsh and send the exit command after <delay> seconds",
     )
 
     parser.add_argument(
