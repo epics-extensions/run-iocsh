@@ -1,33 +1,32 @@
 run-iocsh
 =========
 
-.. image:: https://img.shields.io/badge/code%20style-black-000000.svg
-    :target: https://github.com/ambv/black
-
-.. image:: https://gitlab.esss.lu.se/ics-infrastructure/run-iocsh/badges/master/pipeline.svg
-
-.. image:: https://gitlab.esss.lu.se/ics-infrastructure/run-iocsh/badges/master/coverage.svg
-
-
-Wrapper to run iocsh for test.
+Wrapper to run `iocsh`` for test.
 
 **run-iocsh is only meant to be used for testing!** It runs `iocsh` and sends the **exit** command after a delay.
 It raises an exception if an error occurred.
 
 Requires Python >= 3.6 (development requires >= 3.7) and an activated e3 environment.
 
+Installation
+------------
+
+.. code-block:: console
+
+    $ pip install run-iocsh -i https://artifactory.esss.lu.se/artifactory/api/pypi/pypi-virtual/simple
+
 Quick start
 -----------
 
-::
+.. code-block:: console
 
     $ run-iocsh -h
     Usage: run-iocsh [OPTIONS] [REMAINING]...
 
-    Run iocsch.bash and send the exit command after <delay> seconds
+    Run iocsh and send the exit command after <delay> seconds
 
     Options:
-      --name TEXT      name of the iocsh script [default: iocsh]
+      --name TEXT      name of the executable [default: iocsh]
       --delay FLOAT    time (in seconds) to wait before to send the exit command
                        [default: 5]
 
@@ -37,7 +36,9 @@ Quick start
       -h, --help       Show this message and exit.
 
 
-All other arguments are passed to the iocsh script::
+All other arguments are passed to the iocsh script
+
+.. code-block:: console
 
     $ run-iocsh -r iocstats
     2019-03-19 10:12:57,016 DEBUG: Running: ['iocsh', '-r', 'iocstats']
@@ -71,24 +72,24 @@ All other arguments are passed to the iocsh script::
     ...
 
 
-run-iocsh also allows for more fine-grained control of the testing process through the included class `IOC`.
+The library can also be used with python through the included `IOC` class.
 
 .. code-block:: python
 
     from run_iocsh import IOC
-    from epics import PV
+    from p4p.client.thread import Context
 
     ioc = IOC("st.cmd")
     ioc.start()
 
-    pv = PV("TEST")
-    print(pv.get())
+    ctxt = Context("pva")
+    pv = ctxt.get("SOME-PV")
+    print(pv)
 
     ioc.exit()
 
     ioc.check_output()
-
-    print(ioc.outs)
+    print(ioc.outs, ioc.errs)
 
 The above example allows you to start an IOC with a given startup script, and communicate with the IOC via
 channel access. This permits much more flexibility for automated testing of IOCs and EPICS modules.
@@ -97,20 +98,12 @@ The IOC class can also be used as a context manager:
 
 .. code-block:: python
 
-    with IOC("st.cmd") as ioc:
-        pv = PV("TEST")
-        print(pv.get())
+    with IOC("st.cmd"), Context("pva") as ctxt:
+        pv_name = "SOME-PV"
+        value = "42"
 
-    ioc.check_output()
-    print(ioc.outs)
-
-Installation
-------------
-
-::
-
-    $ pip install run-iocsh -i https://artifactory.esss.lu.se/artifactory/api/pypi/pypi-virtual/simple
-
+        ctxt.put("SOME-PV", value)
+        assert ctxt.get("SOME-PV") == value
 
 License
 -------

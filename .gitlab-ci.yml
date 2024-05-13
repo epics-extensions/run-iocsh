@@ -1,8 +1,9 @@
+---
 include:
   - 'https://gitlab.esss.lu.se/ics-infrastructure/gitlab-ci-yml/raw/master/PreCommit.gitlab-ci.yml'
   - 'https://gitlab.esss.lu.se/ics-infrastructure/gitlab-ci-yml/raw/master/ArtifactoryPyPI.gitlab-ci.yml'
 
-.runner_tags: &runner_tags
+default:
   tags:
     - docker
 
@@ -15,30 +16,51 @@ stages:
   - test
   - release
 
-test-conda-python36:
-  <<: *runner_tags
+build-pypi-package:
+  image: python:3.6
+  before_script:
+    - pip install build
+  script:
+    - python -m build
+
+.test-conda:
   stage: test
   image: registry.esss.lu.se/ics-docker/miniconda
   before_script:
     - source /etc/profile.d/conda.sh
-    - conda create -n test -y -c conda-e3-virtual python=3.6 essioc
+    - conda create -n test -y -c conda-e3-virtual python=$PYTHON_VERSION essioc
     - conda activate test
-    - pip install -r requirements-dev.txt
-    - pip install .
+    - pip install .[dev]
   script:
     - run-iocsh -h
     - pytest -v tests
 
-test-conda-python37:
-  <<: *runner_tags
-  stage: test
-  image: registry.esss.lu.se/ics-docker/miniconda
-  before_script:
-    - source /etc/profile.d/conda.sh
-    - conda create -n test -y -c conda-e3-virtual python=3.7 essioc
-    - conda activate test
-    - pip install -r requirements-dev.txt
-    - pip install .
+test-conda-python36:
+  extends: .test-conda
   script:
     - run-iocsh -h
-    - pytest -v --cov=run_iocsh tests
+    - pytest -v --cov-report xml:coverage.xml --cov=run_iocsh --junitxml=report.xml
+  coverage: '/(?i)total.*? (100(?:\.0+)?\%|[1-9]?\d(?:\.\d+)?\%)$/'
+  artifacts:
+    reports:
+      coverage_report:
+        coverage_format: cobertura
+        path: coverage.xml
+      junit: report.xml
+  variables:
+    PYTHON_VERSION: 3.6
+
+test-conda-python37:
+  extends: .test-conda
+  variables:
+    PYTHON_VERSION: 3.7
+
+test-conda-python38:
+  extends: .test-conda
+  variables:
+    PYTHON_VERSION: 3.8
+
+test-conda-python39:
+  extends: .test-conda
+  variables:
+    PYTHON_VERSION: 3.9

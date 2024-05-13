@@ -1,3 +1,0 @@
-record(ai, "TEST") {
-    field(INP, "5")
-}

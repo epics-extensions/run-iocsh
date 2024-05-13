@@ -1,4 +1,5 @@
-#!/usr/bin/env python3
+"""Singular module and CLI entry point for package."""
+
 # Copyright (c) 2024 European Spallation Source ERIC
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -35,15 +36,15 @@ RE_CANT_OPEN_FILE = re.compile(r"(save_restore:)?\s*Can't\s*open\sfile\s\'(.*?)\
 RE_MISSING_SHARED_LIB = re.compile(r"(lib.*): cannot open shared object file")
 
 
-class Error(Exception):
+class RunIocshError(Exception):
     """Base class for exceptions in this module."""
 
 
-class IocshModuleNotFoundError(Error):
+class IocshModuleNotFoundError(RunIocshError):
     """Exception raised when the required module is not found."""
 
 
-class IocshProcessError(Error):
+class IocshProcessError(RunIocshError):
     """
     Exception raised when the iocsh script exits with a non null return code.
 
@@ -51,15 +52,15 @@ class IocshProcessError(Error):
     """
 
 
-class IocshTimeoutExpiredError(Error):
+class IocshTimeoutExpiredError(RunIocshError):
     """Exception raised when a timeout occurred trying to send exit to the softIOC."""
 
 
-class IocshAlreadyRunningError(Error):
+class IocshAlreadyRunningError(RunIocshError):
     """Exception raised when IOC is started a second time."""
 
 
-class MissingSharedLibraryError(Error):
+class MissingSharedLibraryError(RunIocshError):
     """Exception raised when shared library is missing."""
 
 
@@ -78,15 +79,8 @@ class IOC:
         self.outs = ""
         self.errs = ""
         self.args = args
-        if shutil.which(ioc_executable) is None:
-            # TODO remove this when iocsh.bash is no longer supported
-            if (ioc_executable == "iocsh") and shutil.which("iocsh.bash") is not None:
-                # Newer iocsh is missing so we rollback to the older one
-                ioc_executable = "iocsh.bash"
-            else:
-                raise FileNotFoundError(
-                    f"No such file or directory: '{ioc_executable}'"
-                )
+        if not shutil.which(ioc_executable):
+            raise FileNotFoundError(f"No such file or directory: '{ioc_executable}'")
         self.ioc_executable = ioc_executable
         self.timeout = timeout
         self.state = self.state_values.INITIALIZED
@@ -189,7 +183,7 @@ def run_iocsh(name: str, delay: int, *args: str, timeout: float = 5) -> None:
 
 def parse_arguments(args: Optional[List[str]] = None) -> argparse.Namespace:  # noqa: D103
     parser = argparse.ArgumentParser(
-        description="Run iocsch.bash and send the exit command after <delay> seconds",
+        description="Run iocsh and send the exit command after <delay> seconds",
     )
 
     parser.add_argument(
@@ -224,7 +218,7 @@ def main() -> None:  # noqa: D103
     )
     try:
         run_iocsh(args[0].name, args[0].delay, *args[1], timeout=args[0].timeout)
-    except (Error, FileNotFoundError):
+    except (RunIocshError, FileNotFoundError):
         logging.exception("Found an error")
         sys.exit(1)
 
