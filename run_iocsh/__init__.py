@@ -114,7 +114,7 @@ class IOC:
 
         self._exited = False
 
-        cmd = [self.ioc_executable, *self.args]
+        cmd = [str(item) for item in [self.ioc_executable, *self.args]]
         logging.debug("Running: %s", " ".join(cmd))
         self.proc = subprocess.Popen(
             cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE
