@@ -158,16 +158,16 @@ class IOC:
             + "=============================================="
         )
         logging.debug("return code: %s", self.proc.returncode)
-        m = RE_MODULE_NOT_AVAILABLE.search(self.outs)
+        m = RE_MODULE_NOT_AVAILABLE.search(self.outs + self.errs)
         if m:
             raise IocshModuleNotFoundError(m.group(0))
-        m = RE_CANT_OPEN.search(self.outs)
+        m = RE_CANT_OPEN.search(self.outs + self.errs)
         if m and m.group(1) != "save_restore:":
             raise FileNotFoundError(f"No such file or directory: '{m.group(2)}'")
-        m = RE_CANT_OPEN_FILE.search(self.outs)
+        m = RE_CANT_OPEN_FILE.search(self.outs + self.errs)
         if m and m.group(1) != "save_restore:":
             raise FileNotFoundError(f"No such file or directory: '{m.group(2)}'")
-        m = RE_MISSING_SHARED_LIB.search(self.outs)
+        m = RE_MISSING_SHARED_LIB.search(self.outs + self.errs)
         if m:
             raise MissingSharedLibraryError(f"Missing shared library: '{m.group(1)}'")
         if self.proc.returncode != 0:
