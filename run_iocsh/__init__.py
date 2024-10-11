@@ -33,6 +33,9 @@ from typing import List, Optional
 RE_MODULE_NOT_AVAILABLE = re.compile("Module .*? not available")
 RE_CANT_OPEN = re.compile(r"(save_restore:)?\s*Can't\s*open\s*(.*?):")
 RE_CANT_OPEN_FILE = re.compile(r"(save_restore:)?\s*Can't\s*open\sfile\s\'(.*?)\'")
+RE_FIlE_NOT_FOUND = re.compile(
+    r"FileNotFoundError: \[Errno 2\] No such file or directory: \'(.*?)\'"
+)
 RE_MISSING_SHARED_LIB = re.compile(r"(lib.*): cannot open shared object file")
 
 
@@ -114,7 +117,7 @@ class IOC:
 
         self._exited = False
 
-        cmd = [self.ioc_executable, *self.args]
+        cmd = [str(item) for item in [self.ioc_executable, *self.args]]
         logging.debug("Running: %s", " ".join(cmd))
         self.proc = subprocess.Popen(
             cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE
@@ -158,16 +161,19 @@ class IOC:
             + "=============================================="
         )
         logging.debug("return code: %s", self.proc.returncode)
-        m = RE_MODULE_NOT_AVAILABLE.search(self.outs)
+        m = RE_MODULE_NOT_AVAILABLE.search(self.outs + self.errs)
         if m:
             raise IocshModuleNotFoundError(m.group(0))
-        m = RE_CANT_OPEN.search(self.outs)
+        m = RE_CANT_OPEN.search(self.outs + self.errs)
         if m and m.group(1) != "save_restore:":
             raise FileNotFoundError(f"No such file or directory: '{m.group(2)}'")
-        m = RE_CANT_OPEN_FILE.search(self.outs)
+        m = RE_CANT_OPEN_FILE.search(self.outs + self.errs)
         if m and m.group(1) != "save_restore:":
             raise FileNotFoundError(f"No such file or directory: '{m.group(2)}'")
-        m = RE_MISSING_SHARED_LIB.search(self.outs)
+        m = RE_FIlE_NOT_FOUND.search(self.outs + self.errs)
+        if m:
+            raise FileNotFoundError(f"No such file or directory: '{m.group(1)}'")
+        m = RE_MISSING_SHARED_LIB.search(self.outs + self.errs)
         if m:
             raise MissingSharedLibraryError(f"Missing shared library: '{m.group(1)}'")
         if self.proc.returncode != 0:
