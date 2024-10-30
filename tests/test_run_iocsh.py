@@ -8,6 +8,7 @@ from run_iocsh import (
     IOC,
     IocshAlreadyRunningError,
     IocshModuleNotFoundError,
+    IocshProcessError,
     IocshTimeoutExpiredError,
     MissingSharedLibraryError,
     parse_arguments,
@@ -51,9 +52,12 @@ class TestExceptions:
 
     def test_run_iocsh_cmd_file_not_found(self) -> None:
         filename = "does-not-exist.cmd"
-        with pytest.raises(FileNotFoundError) as excinfo:
+        # Different versions of require will generate different errors in this
+        # case, which in turn will take different paths in run-iocsh.
+        # Because of this we accept both exception types and check the message.
+        with pytest.raises((FileNotFoundError, IocshProcessError)) as excinfo:
             run_iocsh("iocsh", 1, filename)
-        assert str(excinfo.value) == f"No such file or directory: '{filename}'"
+        assert f"No such file or directory: '{filename}'" in str(excinfo.value)
 
     def test_run_iocsh_module_version_not_found(self) -> None:
         with pytest.raises(IocshModuleNotFoundError) as excinfo:
