@@ -28,7 +28,7 @@ build-pypi-package:
   image: registry.esss.lu.se/ics-docker/miniconda
   before_script:
     - source /etc/profile.d/conda.sh
-    - conda create -n test -y -c conda-e3-virtual python=$PYTHON_VERSION essioc
+    - conda create -n test -y -c conda-e3-virtual python=$PYTHON_VERSION require
     - conda activate test
     - pip install .[dev]
   script:
