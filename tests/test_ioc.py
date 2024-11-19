@@ -16,12 +16,19 @@ from run_iocsh import (
 )
 
 
-def mocked_iocsh_subprocess_communicate_retval(
+def mocked_iocsh_module_unavailable_subprocess_communicate_retval(
     module_name: str, module_version: str
 ) -> Tuple[bytes, bytes]:
     outs = b""
     errs = f"Module {module_name} version {module_version} not available".encode()
     return outs, errs
+
+
+def test_run_iocsh_output_in_pylog(caplog: pytest.LogCaptureFixture) -> None:
+    with caplog.at_level(logging.INFO):
+        run_iocsh("iocsh", 1)
+    assert "require_registerRecordDeviceDriver" in caplog.text
+    assert "Loading module info records for require" in caplog.text
 
 
 def test_split_run() -> None:
@@ -72,7 +79,9 @@ class TestExceptions:
 
         process_mock = popen_mock.Mock()
         process_mock.communicate.return_value = (
-            mocked_iocsh_subprocess_communicate_retval(module_name, module_version)
+            mocked_iocsh_module_unavailable_subprocess_communicate_retval(
+                module_name, module_version
+            )
         )
         process_mock.returncode = 0
         popen_mock.return_value = process_mock
