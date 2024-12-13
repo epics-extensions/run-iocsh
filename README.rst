@@ -1,7 +1,7 @@
 run-iocsh
 =========
 
-Wrapper to run `iocsh`` for test.
+Wrapper to run `iocsh` for test.
 
 **run-iocsh is only meant to be used for testing!** It runs `iocsh` and sends the **exit** command after a delay.
 It raises an exception if an error occurred.
