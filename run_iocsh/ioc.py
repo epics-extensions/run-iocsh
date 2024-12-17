@@ -28,7 +28,8 @@ import time
 from enum import Enum
 
 RE_MODULE_NOT_AVAILABLE = re.compile("Module .*? not available")
-RE_CANT_OPEN = re.compile(r"(save_restore:)?\s*Can't\s*open\s*(.*?):")
+RE_CANT_OPEN = re.compile(r"[Cc]an't\s*open\s*(.*?):")
+RE_DOES_NOT_EXIST = re.compile(r"File (.*) does not exist")
 RE_MISSING_SHARED_LIB = re.compile(r"(lib.*): cannot open shared object file")
 
 
@@ -157,9 +158,12 @@ class IOC:
         m = RE_MODULE_NOT_AVAILABLE.search(self.outs + self.errs)
         if m:
             raise IocshModuleNotFoundError(m.group(0))
-        m = RE_CANT_OPEN.search(self.outs + self.errs)
-        if m and m.group(1) != "save_restore:":
-            raise FileNotFoundError(f"No such file or directory: '{m.group(2)}'")
+        m1 = RE_CANT_OPEN.search(self.outs + self.errs)
+        m2 = RE_DOES_NOT_EXIST.search(self.errs)
+        if m1 or m2:
+            raise FileNotFoundError(
+                f"No such file or directory: '{m1.group(1) if m1 else m2.group(1)}'"
+            )
         m = RE_MISSING_SHARED_LIB.search(self.outs + self.errs)
         if m:
             raise MissingSharedLibraryError(f"Missing shared library: '{m.group(1)}'")
