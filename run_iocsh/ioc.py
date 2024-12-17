@@ -64,21 +64,20 @@ class MissingSharedLibraryError(RunIocshError):
 class IOC:
     """Class to wrap IOC process."""
 
+    executable = "iocsh"
     state_values = Enum("state_values", "INITIALIZED STARTED EXITED")
 
     def __init__(
         self,
         *args: str,
-        ioc_executable: str = "iocsh",
         timeout: float = 5.0,
     ) -> None:
         self.proc = None
         self.outs = ""
         self.errs = ""
         self.args = args
-        if not shutil.which(ioc_executable):
-            raise FileNotFoundError(f"No such file or directory: '{ioc_executable}'")
-        self.ioc_executable = ioc_executable
+        if not shutil.which(self.executable):
+            raise FileNotFoundError(f"No such file or directory: '{self.executable}'")
         self.timeout = timeout
         self.state = self.state_values.INITIALIZED
 
@@ -99,7 +98,7 @@ class IOC:
         return self.proc is not None and self.proc.poll() is None
 
     def start(self) -> None:
-        """Run <self.ioc_executable> iocsh script with given command-line args."""
+        """Run <self.executable> iocsh script with given command-line args."""
         if self.state == self.state_values.STARTED:
             raise IocshAlreadyRunningError("IOC already running")
 
@@ -111,7 +110,7 @@ class IOC:
 
         self._exited = False
 
-        cmd = [str(item) for item in [self.ioc_executable, *self.args]]
+        cmd = [str(item) for item in [self.executable, *self.args]]
         logging.debug("Running: %s", " ".join(cmd))
         self.proc = subprocess.Popen(
             cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE
@@ -171,8 +170,8 @@ class IOC:
             raise IocshProcessError(f"Return code: {self.proc.returncode}\n{self.errs}")
 
 
-def run_iocsh(name: str, delay: int, *args: str, timeout: float = 5) -> None:
+def run_iocsh(delay: int, *args: str, timeout: float = 5) -> None:
     """Run an IOC, exit, and parse the output."""
-    with IOC(*args, ioc_executable=name, timeout=timeout) as ioc:
+    with IOC(*args, timeout=timeout) as ioc:
         time.sleep(delay)
     ioc.check_output()
