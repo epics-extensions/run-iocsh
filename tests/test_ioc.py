@@ -26,7 +26,7 @@ def mocked_iocsh_module_unavailable_subprocess_communicate_retval(
 
 def test_run_iocsh_output_in_pylog(caplog: pytest.LogCaptureFixture) -> None:
     with caplog.at_level(logging.INFO):
-        run_iocsh("iocsh", 1)
+        run_iocsh(1)
     assert "require_registerRecordDeviceDriver" in caplog.text
     assert "Loading module info records for require" in caplog.text
 
@@ -58,9 +58,10 @@ def test_doubleexit(caplog: pytest.LogCaptureFixture) -> None:
 
 
 class TestExceptions:
-    def test_run_iocsh_script_not_found(self) -> None:
+    def test_run_iocsh_script_not_found(self, monkeypatch) -> None:  # noqa: ANN001
+        monkeypatch.setattr("run_iocsh.ioc.IOC.executable", "foo")
         with pytest.raises(FileNotFoundError) as excinfo:
-            run_iocsh("foo", 1)
+            run_iocsh(1)
         assert "No such file or directory: 'foo'" in str(excinfo.value)
 
     def test_run_iocsh_cmd_file_not_found(self) -> None:
@@ -69,7 +70,7 @@ class TestExceptions:
         # case, which in turn will take different paths in run-iocsh.
         # Because of this we accept both exception types and check the message.
         with pytest.raises((FileNotFoundError, IocshProcessError)) as excinfo:
-            run_iocsh("iocsh", 1, filename)
+            run_iocsh(1, filename)
         assert f"No such file or directory: '{filename}'" in str(excinfo.value)
 
     @patch("subprocess.Popen")
@@ -87,7 +88,7 @@ class TestExceptions:
         popen_mock.return_value = process_mock
 
         with pytest.raises(IocshModuleNotFoundError) as excinfo:
-            run_iocsh("iocsh", 1, "-r", f"{module_name},{module_version}")
+            run_iocsh(1, "-r", f"{module_name},{module_version}")
         assert (
             str(excinfo.value)
             == f"Module {module_name} version {module_version} not available"
@@ -95,7 +96,7 @@ class TestExceptions:
 
     def test_run_iocsh_module_not_found(self) -> None:
         with pytest.raises(IocshModuleNotFoundError) as excinfo:
-            run_iocsh("iocsh", 1, "-r", "foo")
+            run_iocsh(1, "-r", "foo")
         assert str(excinfo.value) == "Module foo not available"
 
     def test_run_iocsh_iocshload_file_not_found(
@@ -111,7 +112,7 @@ iocshLoad("{nonexistent_file}")
         tmp_file.write_text(file_contents)
 
         with caplog.at_level(logging.INFO), pytest.raises(FileNotFoundError) as excinfo:
-            run_iocsh("iocsh", 2, tmp_file.as_posix())
+            run_iocsh(2, tmp_file.as_posix())
         assert f"No such file or directory: '{nonexistent_file}'" == str(excinfo.value)
 
     def test_missing_shared_lib(self, tmp_path: Path) -> None:
@@ -122,11 +123,13 @@ echo "liblib: cannot open shared object file"
         tmp_file.write_text(file_contents)
 
         with pytest.raises(MissingSharedLibraryError) as excinfo:
-            run_iocsh("iocsh", 1, tmp_file.as_posix())
+            run_iocsh(1, tmp_file.as_posix())
         assert str(excinfo.value) == "Missing shared library: 'liblib'"
 
     @pytest.mark.parametrize("name", ["iocsh-timeout.bash", "iocsh-stdin-closed.bash"])
-    def test_run_iocsh_timeout_expired(self, name: str) -> None:
+    def test_run_iocsh_timeout_expired(self, monkeypatch, name: str) -> None:  # noqa: ANN001
+        test_data_dir = Path(__file__).parent / "scripts"
+        monkeypatch.setattr("run_iocsh.ioc.IOC.executable", test_data_dir / name)
         with pytest.raises(IocshTimeoutExpiredError) as excinfo:
-            run_iocsh(f"./tests/scripts/{name}", 0.1, timeout=0.5)
+            run_iocsh(0.1, timeout=0.5)
         assert str(excinfo.value) == "Failed to send exit to the IOC"

@@ -34,13 +34,6 @@ def parse_arguments(args: Optional[List[str]] = None) -> argparse.Namespace:  # 
     )
 
     parser.add_argument(
-        "--name",
-        default="iocsh",
-        type=str,
-        help="name of the iocsh script [default: iocsh]",
-    )
-
-    parser.add_argument(
         "--delay",
         default=5.0,
         type=float,

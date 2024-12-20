@@ -28,7 +28,8 @@ import time
 from enum import Enum
 
 RE_MODULE_NOT_AVAILABLE = re.compile("Module .*? not available")
-RE_CANT_OPEN = re.compile(r"(save_restore:)?\s*Can't\s*open\s*(.*?):")
+RE_CANT_OPEN = re.compile(r"[Cc]an't\s*open\s*(.*?):")
+RE_DOES_NOT_EXIST = re.compile(r"File (.*) does not exist")
 RE_MISSING_SHARED_LIB = re.compile(r"(lib.*): cannot open shared object file")
 
 
@@ -63,21 +64,20 @@ class MissingSharedLibraryError(RunIocshError):
 class IOC:
     """Class to wrap IOC process."""
 
+    executable = "iocsh"
     state_values = Enum("state_values", "INITIALIZED STARTED EXITED")
 
     def __init__(
         self,
         *args: str,
-        ioc_executable: str = "iocsh",
         timeout: float = 5.0,
     ) -> None:
         self.proc = None
         self.outs = ""
         self.errs = ""
         self.args = args
-        if not shutil.which(ioc_executable):
-            raise FileNotFoundError(f"No such file or directory: '{ioc_executable}'")
-        self.ioc_executable = ioc_executable
+        if not shutil.which(self.executable):
+            raise FileNotFoundError(f"No such file or directory: '{self.executable}'")
         self.timeout = timeout
         self.state = self.state_values.INITIALIZED
 
@@ -98,7 +98,7 @@ class IOC:
         return self.proc is not None and self.proc.poll() is None
 
     def start(self) -> None:
-        """Run <self.ioc_executable> iocsh script with given command-line args."""
+        """Run <self.executable> iocsh script with given command-line args."""
         if self.state == self.state_values.STARTED:
             raise IocshAlreadyRunningError("IOC already running")
 
@@ -110,7 +110,7 @@ class IOC:
 
         self._exited = False
 
-        cmd = [str(item) for item in [self.ioc_executable, *self.args]]
+        cmd = [str(item) for item in [self.executable, *self.args]]
         logging.debug("Running: %s", " ".join(cmd))
         self.proc = subprocess.Popen(
             cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE
@@ -157,9 +157,12 @@ class IOC:
         m = RE_MODULE_NOT_AVAILABLE.search(self.outs + self.errs)
         if m:
             raise IocshModuleNotFoundError(m.group(0))
-        m = RE_CANT_OPEN.search(self.outs + self.errs)
-        if m and m.group(1) != "save_restore:":
-            raise FileNotFoundError(f"No such file or directory: '{m.group(2)}'")
+        m1 = RE_CANT_OPEN.search(self.outs + self.errs)
+        m2 = RE_DOES_NOT_EXIST.search(self.errs)
+        if m1 or m2:
+            raise FileNotFoundError(
+                f"No such file or directory: '{m1.group(1) if m1 else m2.group(1)}'"
+            )
         m = RE_MISSING_SHARED_LIB.search(self.outs + self.errs)
         if m:
             raise MissingSharedLibraryError(f"Missing shared library: '{m.group(1)}'")
@@ -167,8 +170,8 @@ class IOC:
             raise IocshProcessError(f"Return code: {self.proc.returncode}\n{self.errs}")
 
 
-def run_iocsh(name: str, delay: int, *args: str, timeout: float = 5) -> None:
+def run_iocsh(delay: int, *args: str, timeout: float = 5) -> None:
     """Run an IOC, exit, and parse the output."""
-    with IOC(*args, ioc_executable=name, timeout=timeout) as ioc:
+    with IOC(*args, timeout=timeout) as ioc:
         time.sleep(delay)
     ioc.check_output()
