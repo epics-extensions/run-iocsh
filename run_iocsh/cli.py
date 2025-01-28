@@ -57,7 +57,7 @@ def main() -> None:  # noqa: D103
         format="%(asctime)s %(levelname)s: %(message)s ", level=logging.DEBUG
     )
     try:
-        run_iocsh(args[0].name, args[0].delay, *args[1], timeout=args[0].timeout)
+        run_iocsh(args[0].delay, *args[1], timeout=args[0].timeout)
     except (RunIocshError, FileNotFoundError):
         logging.exception("Found an error")
         sys.exit(1)
