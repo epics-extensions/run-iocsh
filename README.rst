@@ -26,7 +26,6 @@ Quick start
     Run iocsh and send the exit command after <delay> seconds
 
     Options:
-      --name TEXT      name of the executable [default: iocsh]
       --delay FLOAT    time (in seconds) to wait before to send the exit command
                        [default: 5]
 
