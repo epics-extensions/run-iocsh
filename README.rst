@@ -1,12 +1,13 @@
 run-iocsh
 =========
 
-Wrapper to run `iocsh` for test.
-
-**run-iocsh is only meant to be used for testing!** It runs `iocsh` and sends the **exit** command after a delay.
-It raises an exception if an error occurred.
+Python wrapper to run ``iocsh`` for testing EPICS applications. It starts an IOC (shell), and automatically sends an exit command after a specified delay, raising exceptions if errors occur.
 
 Requires Python >= 3.6 (development requires >= 3.7) and an activated e3 environment.
+
+**Repository:** https://gitlab.esss.lu.se/e3/run-iocsh
+
+**Documentation:** http://e3.pages.esss.lu.se/run-iocsh
 
 Installation
 ------------
@@ -15,94 +16,29 @@ Installation
 
     $ pip install run-iocsh -i https://artifactory.esss.lu.se/artifactory/api/pypi/pypi-virtual/simple
 
-Quick start
+Quick Start
 -----------
 
-.. code-block:: console
-
-    $ run-iocsh -h
-    Usage: run-iocsh [OPTIONS] [REMAINING]...
-
-    Run iocsh and send the exit command after <delay> seconds
-
-    Options:
-      --delay FLOAT    time (in seconds) to wait before to send the exit command
-                       [default: 5]
-
-      --timeout FLOAT  time (in seconds) to wait when sending the exit command
-                       [default: 5]
-
-      -h, --help       Show this message and exit.
-
-
-All other arguments are passed to the iocsh script
+**Command Line:**
 
 .. code-block:: console
 
-    $ run-iocsh -r iocstats
-    2019-03-19 10:12:57,016 DEBUG: Running: ['iocsh', '-r', 'iocstats']
-    2019-03-19 10:13:02,148 INFO: ========== stdout ============================
-    Starting iocInit
-    iocRun: All initialization complete
-    #
-    ...
-    #
-    require iocstats
-    Module iocstats version 3.1.15 found in /opt/conda/envs/epics/modules/iocstats/3.1.15/
-    Loading library /opt/conda/envs/epics/modules/iocstats/3.1.15/lib/linux-x86_64/libiocstats.so
-    Loaded iocstats version 3.1.15
-    Loading dbd file /opt/conda/envs/epics/modules/iocstats/3.1.15/dbd/iocstats.dbd
-    Calling function iocstats_registerRecordDeviceDriver
-    Loading module info records for iocstats
-    ...
-    iocInit
-    ############################################################################
-    ## EPICS R3.15.5
-    ## EPICS Base built Mar 15 2019
-    ############################################################################
-    8253dcedf67c.2117 > exit
-    ============================================================================
-    2019-03-19 10:13:02,149 INFO: ========== stderr ============================
-    ============================================================================
-    2019-03-19 10:13:02,149 DEBUG: return code: 0
+    $ run-iocsh --delay 5 st.cmd
 
-
-    $ run-iocsh cmds/test1.cmd
-    ...
-
-
-The library can also be used with python through the included `IOC` class.
+**Python Library:**
 
 .. code-block:: python
 
     from run_iocsh import IOC
-    from p4p.client.thread import Context
 
-    ioc = IOC("st.cmd")
-    ioc.start()
+    with IOC("st.cmd") as ioc:
+        # Test your EPICS PVs, etc.
+        pass
 
-    ctxt = Context("pva")
-    pv = ctxt.get("SOME-PV")
-    print(pv)
+Documentation
+-------------
 
-    ioc.exit()
-
-    ioc.check_output()
-    print(ioc.outs, ioc.errs)
-
-The above example allows you to start an IOC with a given startup script, and communicate with the IOC via
-channel access. This permits much more flexibility for automated testing of IOCs and EPICS modules.
-
-The IOC class can also be used as a context manager:
-
-.. code-block:: python
-
-    with IOC("st.cmd"), Context("pva") as ctxt:
-        pv_name = "SOME-PV"
-        value = "42"
-
-        ctxt.put("SOME-PV", value)
-        assert ctxt.get("SOME-PV") == value
+For detailed usage instructions, examples, and API reference, see the `full documentation <http://e3.pages.esss.lu.se/run-iocsh>`_.
 
 License
 -------
