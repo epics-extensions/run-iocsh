@@ -4,9 +4,21 @@ repos:
     hooks:
       - id: ruff
         args: [ --fix ]
+        exclude: ^docs/
       - id: ruff-format
+        exclude: ^docs/
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.1.0  # 4.2.0 drops support for py3.6
     hooks:
       - id: end-of-file-fixer
       - id: trailing-whitespace
+  - repo: https://github.com/markdownlint/markdownlint
+    rev: v0.11.0
+    hooks:
+      - id: markdownlint
+        name: Markdownlint
+        entry: mdl
+        language: ruby
+        files: \.(md|mdown|markdown)$
+        args:
+          - "--config=.mdlrc"
