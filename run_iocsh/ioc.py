@@ -225,9 +225,14 @@ class IOC:
 
         Raises:
             IocshAlreadyRunningError: If the IOC is already running.
+            IocshStateError: If the IOC has already exited.
         """
         if self.state == _IOCState.STARTED:
             raise IocshAlreadyRunningError("IOC already running")
+        if self.state == _IOCState.EXITED:
+            raise IocshStateError(
+                "IOC has already exited; create a new instance to run again"
+            )
 
         self.state = _IOCState.STARTED
         self._stdout_lines = []
@@ -293,9 +298,13 @@ class IOC:
             poll_interval: Seconds to sleep between polls.
 
         Raises:
+            IocshStateError: If called before the process has started.
             IocshStartupError: If the IOC exits before the pattern appears.
             IocshTimeoutError: If ``timeout`` expires while the IOC is still running.
         """
+        if self.state != _IOCState.STARTED:
+            raise IocshStateError("wait_for_output() called before start()")
+
         compiled = re.compile(pattern)
         deadline = time.monotonic() + timeout
 

@@ -58,6 +58,13 @@ class TestIOC:
         ioc.exit()
         assert not ioc.is_running()
 
+    def test_start_after_exit_raises(self) -> None:
+        script = str(SCRIPTS / "iocsh-print-and-exit.py")
+        with IOC(executable=script, timeout=5.0) as ioc:
+            pass
+        with pytest.raises(IocshStateError, match="already exited"):
+            ioc.start()
+
     def test_start_while_running_raises(self) -> None:
         script = str(SCRIPTS / "iocsh-print-and-exit.py")
         with (
@@ -162,6 +169,11 @@ class TestWaitForOutput:
             with IOC(executable=script) as ioc:
                 ioc.wait_for_output()
         assert "iocRun: All initialization complete" in caplog.text
+
+    def test_raises_state_error_before_start(self) -> None:
+        script = str(SCRIPTS / "iocsh-print-and-exit.py")
+        with pytest.raises(IocshStateError):
+            IOC(executable=script).wait_for_output()
 
 
 class TestExceptions:
