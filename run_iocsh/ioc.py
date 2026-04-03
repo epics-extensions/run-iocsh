@@ -29,10 +29,17 @@ import subprocess
 import threading
 import time
 from collections.abc import Callable
-from enum import Enum
+from enum import Enum, auto
 from typing import BinaryIO, Self
 
 log = logging.getLogger(__name__)
+
+
+class _IOCState(Enum):
+    INITIALIZED = auto()
+    STARTED = auto()
+    EXITED = auto()
+
 
 RE_MODULE_NOT_AVAILABLE = re.compile("Module .*? not available")
 RE_CANT_OPEN = re.compile(r"[Cc]an't\s*open\s*(.*?):")
@@ -128,8 +135,6 @@ def wait_for(
 class IOC:
     """Class to wrap IOC process."""
 
-    state_values = Enum("state_values", "INITIALIZED STARTED EXITED")
-
     def __init__(
         self,
         *args: str,
@@ -144,7 +149,7 @@ class IOC:
             raise FileNotFoundError(f"No such file or directory: '{self.executable}'")
         self.timeout = timeout
         self._fail_on = fail_on
-        self.state = self.state_values.INITIALIZED
+        self.state = _IOCState.INITIALIZED
         self._stdout_lines: list[str] = []
         self._stderr_lines: list[str] = []
         self._stdout_thread: threading.Thread | None = None
@@ -221,10 +226,10 @@ class IOC:
         Raises:
             IocshAlreadyRunningError: If the IOC is already running.
         """
-        if self.state == self.state_values.STARTED:
+        if self.state == _IOCState.STARTED:
             raise IocshAlreadyRunningError("IOC already running")
 
-        self.state = self.state_values.STARTED
+        self.state = _IOCState.STARTED
         self._stdout_lines = []
         self._stderr_lines = []
 
@@ -249,11 +254,11 @@ class IOC:
 
     def exit(self) -> None:
         """Send the exit command to the running IOC."""
-        if self.state != self.state_values.STARTED:
+        if self.state != _IOCState.STARTED:
             log.warning("IOC is not running")
             return
 
-        self.state = self.state_values.EXITED
+        self.state = _IOCState.EXITED
 
         try:
             self.proc.stdin.write(b"exit\n")
@@ -336,7 +341,7 @@ class IOC:
             IocshPatternMatchError: If any pattern matches the output.
             IocshProcessError: If the process exited with a non-zero code.
         """
-        if self.state != self.state_values.EXITED:
+        if self.state != _IOCState.EXITED:
             raise IocshStateError("check_output() called before exit()")
 
         log.debug("return code: %s", self.proc.returncode)
