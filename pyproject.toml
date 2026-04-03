@@ -65,6 +65,9 @@ lint.per-file-ignores."tests/**" = [
   "PLR2004", # magic values
   "S101",    # asserts
 ]
+lint.per-file-ignores."tests/scripts/**" = [
+  "T201", # prints
+]
 lint.pydocstyle.convention = "google"
 
 [tool.pymarkdown]

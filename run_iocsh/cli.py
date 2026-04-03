@@ -63,6 +63,15 @@ def parse_arguments(  # noqa: D103
         help="IOC executable to run",
     )
 
+    parser.add_argument(
+        "--fail-on",
+        action="append",
+        dest="fail_on",
+        default=[],
+        metavar="PATTERN",
+        help="raise if regex PATTERN matches output (may be given multiple times)",
+    )
+
     return parser.parse_known_args(args)
 
 
@@ -77,6 +86,7 @@ def main() -> None:  # noqa: D103
             delay=namespace.delay,
             timeout=namespace.timeout,
             executable=namespace.executable,
+            fail_on=namespace.fail_on or None,
         )
     except (RunIocshError, FileNotFoundError):
         log.exception("Found an error")

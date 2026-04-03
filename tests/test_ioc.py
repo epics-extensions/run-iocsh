@@ -10,10 +10,15 @@ from run_iocsh import (
     IocshFileNotFoundError,
     IocshMissingSharedLibraryError,
     IocshModuleNotFoundError,
+    IocshPatternMatchError,
+    IocshStateError,
     IocshTimeoutError,
     run_iocsh,
     wait_for,
 )
+from run_iocsh.ioc import RE_BUILTIN_FAIL_ON
+
+SCRIPTS = Path(__file__).parent / "scripts"
 
 
 def mocked_iocsh_module_unavailable_subprocess_communicate_retval(
@@ -57,6 +62,12 @@ def test_doubleexit(caplog: pytest.LogCaptureFixture) -> None:
             pass
         ioc.exit()
     assert "IOC is not running" in caplog.text
+
+
+def test_check_output_before_exit_raises() -> None:
+    script = str(SCRIPTS / "iocsh-custom-error.py")
+    with pytest.raises(IocshStateError):
+        IOC(executable=script).check_output()
 
 
 class TestWaitFor:
@@ -161,3 +172,32 @@ echo "liblib: cannot open shared object file"
         with pytest.raises(IocshTimeoutError) as excinfo:
             run_iocsh(delay=0.1, timeout=0.5, executable=str(test_data_dir / name))
         assert str(excinfo.value) == "Failed to send exit to the IOC"
+
+
+class TestCheckOutputFailOn:
+    def test_builtin_error_pattern_detected(self) -> None:
+        test_data_dir = Path(__file__).parent / "scripts"
+        script = str(test_data_dir / "iocsh-error-output.py")
+        with pytest.raises(IocshPatternMatchError, match="ERROR"):
+            run_iocsh(delay=0.1, executable=script)
+
+    def test_user_fail_on_pattern_raises(self) -> None:
+        test_data_dir = Path(__file__).parent / "scripts"
+        script = str(test_data_dir / "iocsh-custom-error.py")
+        with pytest.raises(IocshPatternMatchError, match="CUSTOM_ERROR:"):
+            run_iocsh(delay=0.1, executable=script, fail_on=["CUSTOM_ERROR:"])
+
+    def test_user_fail_on_no_match_does_not_raise(self) -> None:
+        test_data_dir = Path(__file__).parent / "scripts"
+        script = str(test_data_dir / "iocsh-custom-error.py")
+        run_iocsh(delay=0.1, executable=script, fail_on=["WILL_NOT_MATCH"])
+
+    def test_builtin_fail_on_is_exported(self) -> None:
+        assert isinstance(RE_BUILTIN_FAIL_ON, tuple)
+        assert any("ERROR" in p for p in RE_BUILTIN_FAIL_ON)
+
+    def test_fail_on_is_additive_to_builtins(self) -> None:
+        # Builtins still fire even when a custom fail_on is also passed
+        script = str(SCRIPTS / "iocsh-error-output.py")
+        with pytest.raises(IocshPatternMatchError, match="ERROR"):
+            run_iocsh(delay=0.1, executable=script, fail_on=["WILL_NOT_MATCH"])

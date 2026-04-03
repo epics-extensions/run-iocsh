@@ -37,6 +37,7 @@ RE_MODULE_NOT_AVAILABLE = re.compile("Module .*? not available")
 RE_CANT_OPEN = re.compile(r"[Cc]an't\s*open\s*(.*?):")
 RE_DOES_NOT_EXIST = re.compile(r"File (.*) does not exist")
 RE_MISSING_SHARED_LIB = re.compile(r"(lib.*): cannot open shared object file")
+RE_BUILTIN_FAIL_ON: tuple[str, ...] = (r"^ERROR",)
 
 DEFAULT_EXECUTABLE = "iocsh"
 DEFAULT_EXIT_TIMEOUT = 0.0
@@ -129,6 +130,7 @@ class IOC:
         *args: str,
         executable: str = DEFAULT_EXECUTABLE,
         timeout: float = DEFAULT_EXIT_TIMEOUT,
+        fail_on: list[str] | None = None,
     ) -> None:
         self.proc = None
         self.outs = ""
@@ -138,6 +140,7 @@ class IOC:
         if not shutil.which(self.executable):
             raise FileNotFoundError(f"No such file or directory: '{self.executable}'")
         self.timeout = timeout
+        self._fail_on = fail_on
         self.state = self.state_values.INITIALIZED
 
     def __enter__(self) -> Self:
@@ -151,6 +154,8 @@ class IOC:
         exc_traceback: object,
     ) -> None:
         self.exit()
+        if exc_type is None:
+            self.check_output(fail_on=self._fail_on)
 
     @property
     def pid(self) -> int | None:
@@ -205,34 +210,46 @@ class IOC:
         self.outs = outs.decode("utf-8")
         self.errs = errs.decode("utf-8")
 
-    def check_output(self) -> None:
-        """Log and check output from subprocess."""
-        if self.state != self.state_values.EXITED:
-            log.warning("IOC has not exited yet")
-            return
+    def check_output(self, fail_on: list[str] | None = None) -> None:
+        """Inspect accumulated output and raise on detected errors.
 
-        log.info(
-            "========== stdout ============================\n"
-            + self.outs
-            + "=============================================="
-        )
-        log.info(
-            "========== stderr ============================\n"
-            + self.errs
-            + "=============================================="
-        )
+        Always applies ``BUILTIN_FAIL_ON`` patterns plus the hardcoded checks
+        (module not found, can't open, missing shared library, file does not
+        exist, non-zero exit code).
+
+        Args:
+            fail_on: Additional regex patterns to match against combined
+                stdout+stderr. Pass ``["MY:"]`` to catch ``MY:`` on top of
+                the built-in checks.
+
+        Raises:
+            IocshStateError: If called before the process has exited.
+            IocshPatternMatchError: If any pattern matches the output.
+            IocshProcessError: If the process exited with a non-zero code.
+        """
+        if self.state != self.state_values.EXITED:
+            raise IocshStateError("check_output() called before exit()")
+
         log.debug("return code: %s", self.proc.returncode)
-        m = RE_MODULE_NOT_AVAILABLE.search(self.outs + self.errs)
+        combined = self.outs + self.errs
+        patterns = RE_BUILTIN_FAIL_ON + tuple(fail_on or [])
+        for pattern in patterns:
+            m = re.search(pattern, combined, re.MULTILINE)
+            if m:
+                raise IocshPatternMatchError(
+                    f"Pattern {pattern!r} matched output: {m.group(0)!r}"
+                )
+        m = RE_MODULE_NOT_AVAILABLE.search(combined)
         if m:
             raise IocshModuleNotFoundError(m.group(0))
-        m1 = RE_CANT_OPEN.search(self.outs + self.errs)
-        m2 = RE_DOES_NOT_EXIST.search(self.errs)
+        m1 = RE_CANT_OPEN.search(combined)
+        m2 = RE_DOES_NOT_EXIST.search(combined)
         if m1 or m2:
             filename = m1.group(1) if m1 else m2.group(1)
             raise IocshFileNotFoundError(
                 errno.ENOENT, os.strerror(errno.ENOENT), filename
             )
-        m = RE_MISSING_SHARED_LIB.search(self.outs + self.errs)
+        m = RE_MISSING_SHARED_LIB.search(combined)
         if m:
             raise IocshMissingSharedLibraryError(
                 f"Missing shared library: '{m.group(1)}'"
@@ -246,8 +263,8 @@ def run_iocsh(
     delay: float = DEFAULT_DELAY,
     timeout: float = DEFAULT_EXIT_TIMEOUT,
     executable: str = DEFAULT_EXECUTABLE,
+    fail_on: list[str] | None = None,
 ) -> None:
     """Run an IOC, exit, and parse the output."""
-    with IOC(*args, executable=executable, timeout=timeout) as ioc:
+    with IOC(*args, executable=executable, timeout=timeout, fail_on=fail_on):
         time.sleep(delay)
-    ioc.check_output()
