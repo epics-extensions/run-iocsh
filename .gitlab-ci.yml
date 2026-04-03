@@ -29,22 +29,17 @@ build-pypi-package:
   script:
     - python -m build
 
-.test-conda:
+.test:
   stage: test
-  image: registry.esss.lu.se/ics-docker/miniconda
   before_script:
-    - source /etc/profile.d/conda.sh
-    - conda create -n test -y -c conda-e3-virtual python=$PYTHON_VERSION require
-    - conda activate test
     - pip install .[dev]
   script:
-    - run-iocsh -h
     - pytest -v tests
 
-test-conda-python312:
-  extends: .test-conda
+test-python312:
+  extends: .test
+  image: python:3.12
   script:
-    - run-iocsh -h
     - pytest -v --cov=run_iocsh --cov-report=term-missing --cov-report=xml tests
   coverage: '/(?i)total.*? (100(?:\.0+)?\%|[1-9]?\d(?:\.\d+)?\%)$/'
   artifacts:
@@ -54,8 +49,14 @@ test-conda-python312:
       coverage_report:
         coverage_format: cobertura
         path: coverage.xml
-  variables:
-    PYTHON_VERSION: "3.12"
+
+test-python313:
+  extends: .test
+  image: python:3.13
+
+test-python314:
+  extends: .test
+  image: python:3.14
 
 run-sonar-scanner:
   needs:
