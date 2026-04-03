@@ -24,11 +24,11 @@ import argparse
 import logging
 import sys
 
+from run_iocsh.exceptions import RunIocshError
 from run_iocsh.ioc import (
     DEFAULT_DELAY,
     DEFAULT_EXECUTABLE,
     DEFAULT_EXIT_TIMEOUT,
-    RunIocshError,
     run_iocsh,
 )
 

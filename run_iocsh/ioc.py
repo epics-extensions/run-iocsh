@@ -1,4 +1,4 @@
-"""Class, exceptions, and utility functions for running an IOC and capturing output."""
+"""Class for running an IOC and capturing output."""
 
 # Copyright (c) 2024 European Spallation Source ERIC
 #
@@ -28,9 +28,20 @@ import shutil
 import subprocess
 import threading
 import time
-from collections.abc import Callable
 from enum import Enum, auto
 from typing import BinaryIO, Self
+
+from run_iocsh.exceptions import (
+    IocshAlreadyRunningError,
+    IocshFileNotFoundError,
+    IocshMissingSharedLibraryError,
+    IocshModuleNotFoundError,
+    IocshPatternMatchError,
+    IocshProcessError,
+    IocshStartupError,
+    IocshStateError,
+    IocshTimeoutError,
+)
 
 log = logging.getLogger(__name__)
 
@@ -56,80 +67,6 @@ DEFAULT_THREAD_TIMEOUT = 5.0
 DEFAULT_THREAD_JOIN_TIMEOUT = 1.0
 
 TAIL_CHARS = 500
-
-
-class RunIocshError(Exception):
-    """Base class for exceptions in this module."""
-
-
-class IocshStateError(RunIocshError):
-    """Exception raised for programming errors (wrong state transitions)."""
-
-
-class IocshAlreadyRunningError(IocshStateError):
-    """Exception raised when IOC is started a second time."""
-
-
-class IocshTimeoutError(RunIocshError):
-    """Exception raised when a timeout occurred trying to send exit to the IOC."""
-
-
-class IocshStartupError(RunIocshError):
-    """Exception raised when IOC exits before the expected readiness pattern appears."""
-
-
-class IocshOutputError(RunIocshError):
-    """Base exception for errors detected in IOC output."""
-
-
-class IocshFileNotFoundError(IocshOutputError, FileNotFoundError):
-    """Exception raised when a file referenced in the startup script is not found."""
-
-
-class IocshModuleNotFoundError(IocshOutputError):
-    """Exception raised when the required module is not found."""
-
-
-class IocshMissingSharedLibraryError(IocshOutputError):
-    """Exception raised when shared library is missing."""
-
-
-class IocshProcessError(IocshOutputError):
-    """Exception raised when the iocsh script exits with a non null return code."""
-
-
-class IocshPatternMatchError(IocshOutputError):
-    """Exception raised when a fail_on pattern matches the IOC output."""
-
-
-def wait_for(
-    predicate: Callable[[], bool],
-    timeout: float = DEFAULT_WAIT_FOR_TIMEOUT,
-    poll_interval: float = DEFAULT_POLL_INTERVAL,
-) -> None:
-    """Poll ``predicate`` until it returns True or ``timeout`` elapses.
-
-    Exceptions from ``predicate`` are caught and treated as a false result
-    (polling continues until timeout).
-
-    Args:
-        predicate: Callable invoked repeatedly; success when it returns True.
-        timeout: Maximum seconds to wait before giving up.
-        poll_interval: Seconds to sleep between polls.
-
-    Raises:
-        TimeoutError: If the predicate never returns True within ``timeout``.
-    """
-    deadline = time.monotonic() + timeout
-    while True:
-        try:
-            if predicate():
-                return
-        except Exception:  # noqa: BLE001
-            log.debug("wait_for: predicate raised, treating as False", exc_info=True)
-        if time.monotonic() >= deadline:
-            raise TimeoutError(f"Timed out after {timeout}s waiting for predicate")
-        time.sleep(poll_interval)
 
 
 class IOC:

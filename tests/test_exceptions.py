@@ -1,0 +1,96 @@
+from pathlib import Path
+
+import pytest
+
+from run_iocsh import (
+    IocshFileNotFoundError,
+    IocshMissingSharedLibraryError,
+    IocshModuleNotFoundError,
+    IocshPatternMatchError,
+    IocshTimeoutError,
+    run_iocsh,
+)
+from run_iocsh.ioc import RE_BUILTIN_FAIL_ON
+
+SCRIPTS = Path(__file__).parent / "scripts"
+
+
+class TestExceptions:
+    def test_run_iocsh_script_not_found(self) -> None:
+        with pytest.raises(FileNotFoundError) as excinfo:
+            run_iocsh(executable="foo")
+        assert "No such file or directory: 'foo'" in str(excinfo.value)
+
+    def test_run_iocsh_cmd_file_not_found(self) -> None:
+        filename = "does-not-exist.cmd"
+        script = str(SCRIPTS / "iocsh-cant-open.py")
+        with pytest.raises(IocshFileNotFoundError) as excinfo:
+            run_iocsh(filename, executable=script, delay=0.1)
+        assert f"No such file or directory: '{filename}'" in str(excinfo.value)
+
+    def test_run_iocsh_module_version_not_found(self) -> None:
+        module_name = "mock"
+        module_version = "fake"
+        script = str(SCRIPTS / "iocsh-module-not-found.py")
+        with pytest.raises(IocshModuleNotFoundError) as excinfo:
+            run_iocsh(
+                "-r",
+                f"{module_name},{module_version}",
+                delay=0.1,
+                executable=script,
+            )
+        assert (
+            str(excinfo.value)
+            == f"Module {module_name} version {module_version} not available"
+        )
+
+    def test_run_iocsh_module_not_found(self) -> None:
+        script = str(SCRIPTS / "iocsh-module-not-found.py")
+        with pytest.raises(IocshModuleNotFoundError) as excinfo:
+            run_iocsh("-r", "foo", executable=script, delay=0)
+        assert str(excinfo.value) == "Module foo not available"
+
+    def test_run_iocsh_iocshload_file_not_found(self) -> None:
+        nonexistent_file = "fake"
+        script = str(SCRIPTS / "iocsh-file-not-exist.py")
+        with pytest.raises(IocshFileNotFoundError) as excinfo:
+            run_iocsh(executable=script, delay=0.1)
+        assert f"No such file or directory: '{nonexistent_file}'" in str(excinfo.value)
+
+    def test_missing_shared_lib(self) -> None:
+        script = str(SCRIPTS / "iocsh-missing-shared-lib.py")
+        with pytest.raises(IocshMissingSharedLibraryError) as excinfo:
+            run_iocsh(executable=script, delay=0)
+        assert str(excinfo.value) == "Missing shared library: 'liblib'"
+
+    @pytest.mark.parametrize("name", ["iocsh-timeout.py", "iocsh-stdout-closed.py"])
+    def test_run_iocsh_timeout_expired(self, name: str) -> None:
+        with pytest.raises(IocshTimeoutError) as excinfo:
+            run_iocsh(delay=0.1, timeout=0.5, executable=str(SCRIPTS / name))
+        assert str(excinfo.value) == "Failed to send exit to the IOC"
+
+
+class TestCheckOutputFailOn:
+    def test_builtin_error_pattern_detected(self) -> None:
+        script = str(SCRIPTS / "iocsh-error-output.py")
+        with pytest.raises(IocshPatternMatchError, match="ERROR"):
+            run_iocsh(delay=0.1, executable=script)
+
+    def test_user_fail_on_pattern_raises(self) -> None:
+        script = str(SCRIPTS / "iocsh-custom-error.py")
+        with pytest.raises(IocshPatternMatchError, match="CUSTOM_ERROR:"):
+            run_iocsh(delay=0.1, executable=script, fail_on=["CUSTOM_ERROR:"])
+
+    def test_user_fail_on_no_match_does_not_raise(self) -> None:
+        script = str(SCRIPTS / "iocsh-custom-error.py")
+        run_iocsh(delay=0.1, executable=script, fail_on=["WILL_NOT_MATCH"])
+
+    def test_builtin_fail_on_is_exported(self) -> None:
+        assert isinstance(RE_BUILTIN_FAIL_ON, tuple)
+        assert any("ERROR" in p for p in RE_BUILTIN_FAIL_ON)
+
+    def test_fail_on_is_additive_to_builtins(self) -> None:
+        # Builtins still fire even when a custom fail_on is also passed
+        script = str(SCRIPTS / "iocsh-error-output.py")
+        with pytest.raises(IocshPatternMatchError, match="ERROR"):
+            run_iocsh(delay=0.1, executable=script, fail_on=["WILL_NOT_MATCH"])

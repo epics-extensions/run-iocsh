@@ -6,17 +6,12 @@ import pytest
 from run_iocsh import (
     IOC,
     IocshAlreadyRunningError,
-    IocshFileNotFoundError,
-    IocshMissingSharedLibraryError,
     IocshModuleNotFoundError,
-    IocshPatternMatchError,
     IocshStartupError,
     IocshStateError,
     IocshTimeoutError,
     run_iocsh,
-    wait_for,
 )
-from run_iocsh.ioc import RE_BUILTIN_FAIL_ON
 
 SCRIPTS = Path(__file__).parent / "scripts"
 
@@ -91,33 +86,6 @@ class TestIOC:
             IOC(executable=script).check_output()
 
 
-class TestWaitFor:
-    def test_returns_when_predicate_true(self) -> None:
-        wait_for(lambda: True, timeout=1.0)
-
-    def test_raises_on_timeout(self) -> None:
-        with pytest.raises(TimeoutError):
-            wait_for(lambda: False, timeout=0.05, poll_interval=0.01)
-
-    def test_swallows_predicate_exceptions(self) -> None:
-        call_count = 0
-
-        def flaky() -> bool:
-            nonlocal call_count
-            call_count += 1
-            if call_count < 3:
-                msg = "not ready yet"
-                raise RuntimeError(msg)
-            return True
-
-        wait_for(flaky, timeout=1.0, poll_interval=0.01)
-        assert call_count >= 3
-
-    def test_timeout_message_contains_duration(self) -> None:
-        with pytest.raises(TimeoutError, match=r"0\.05s"):
-            wait_for(lambda: False, timeout=0.05, poll_interval=0.01)
-
-
 class TestWaitForOutput:
     def test_returns_when_pattern_found(self) -> None:
         script = str(SCRIPTS / "iocsh-print-and-exit.py")
@@ -174,84 +142,3 @@ class TestWaitForOutput:
         script = str(SCRIPTS / "iocsh-print-and-exit.py")
         with pytest.raises(IocshStateError):
             IOC(executable=script).wait_for_output()
-
-
-class TestExceptions:
-    def test_run_iocsh_script_not_found(self) -> None:
-        with pytest.raises(FileNotFoundError) as excinfo:
-            run_iocsh(executable="foo")
-        assert "No such file or directory: 'foo'" in str(excinfo.value)
-
-    def test_run_iocsh_cmd_file_not_found(self) -> None:
-        filename = "does-not-exist.cmd"
-        script = str(SCRIPTS / "iocsh-cant-open.py")
-        with pytest.raises(IocshFileNotFoundError) as excinfo:
-            run_iocsh(filename, executable=script, delay=0.1)
-        assert f"No such file or directory: '{filename}'" in str(excinfo.value)
-
-    def test_run_iocsh_module_version_not_found(self) -> None:
-        module_name = "mock"
-        module_version = "fake"
-        script = str(SCRIPTS / "iocsh-module-not-found.py")
-        with pytest.raises(IocshModuleNotFoundError) as excinfo:
-            run_iocsh(
-                "-r",
-                f"{module_name},{module_version}",
-                delay=0.1,
-                executable=script,
-            )
-        assert (
-            str(excinfo.value)
-            == f"Module {module_name} version {module_version} not available"
-        )
-
-    def test_run_iocsh_module_not_found(self) -> None:
-        script = str(SCRIPTS / "iocsh-module-not-found.py")
-        with pytest.raises(IocshModuleNotFoundError) as excinfo:
-            run_iocsh("-r", "foo", executable=script, delay=0)
-        assert str(excinfo.value) == "Module foo not available"
-
-    def test_run_iocsh_iocshload_file_not_found(self) -> None:
-        nonexistent_file = "fake"
-        script = str(SCRIPTS / "iocsh-file-not-exist.py")
-        with pytest.raises(IocshFileNotFoundError) as excinfo:
-            run_iocsh(executable=script, delay=0.1)
-        assert f"No such file or directory: '{nonexistent_file}'" in str(excinfo.value)
-
-    def test_missing_shared_lib(self) -> None:
-        script = str(SCRIPTS / "iocsh-missing-shared-lib.py")
-        with pytest.raises(IocshMissingSharedLibraryError) as excinfo:
-            run_iocsh(executable=script, delay=0)
-        assert str(excinfo.value) == "Missing shared library: 'liblib'"
-
-    @pytest.mark.parametrize("name", ["iocsh-timeout.py", "iocsh-stdout-closed.py"])
-    def test_run_iocsh_timeout_expired(self, name: str) -> None:
-        with pytest.raises(IocshTimeoutError) as excinfo:
-            run_iocsh(delay=0.1, timeout=0.5, executable=str(SCRIPTS / name))
-        assert str(excinfo.value) == "Failed to send exit to the IOC"
-
-
-class TestCheckOutputFailOn:
-    def test_builtin_error_pattern_detected(self) -> None:
-        script = str(SCRIPTS / "iocsh-error-output.py")
-        with pytest.raises(IocshPatternMatchError, match="ERROR"):
-            run_iocsh(delay=0.1, executable=script)
-
-    def test_user_fail_on_pattern_raises(self) -> None:
-        script = str(SCRIPTS / "iocsh-custom-error.py")
-        with pytest.raises(IocshPatternMatchError, match="CUSTOM_ERROR:"):
-            run_iocsh(delay=0.1, executable=script, fail_on=["CUSTOM_ERROR:"])
-
-    def test_user_fail_on_no_match_does_not_raise(self) -> None:
-        script = str(SCRIPTS / "iocsh-custom-error.py")
-        run_iocsh(delay=0.1, executable=script, fail_on=["WILL_NOT_MATCH"])
-
-    def test_builtin_fail_on_is_exported(self) -> None:
-        assert isinstance(RE_BUILTIN_FAIL_ON, tuple)
-        assert any("ERROR" in p for p in RE_BUILTIN_FAIL_ON)
-
-    def test_fail_on_is_additive_to_builtins(self) -> None:
-        # Builtins still fire even when a custom fail_on is also passed
-        script = str(SCRIPTS / "iocsh-error-output.py")
-        with pytest.raises(IocshPatternMatchError, match="ERROR"):
-            run_iocsh(delay=0.1, executable=script, fail_on=["WILL_NOT_MATCH"])

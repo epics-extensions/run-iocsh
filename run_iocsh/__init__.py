@@ -1,7 +1,6 @@
 """Package for running IOC and checking output."""
 
-from run_iocsh.ioc import (
-    IOC,
+from run_iocsh.exceptions import (
     IocshAlreadyRunningError,
     IocshFileNotFoundError,
     IocshMissingSharedLibraryError,
@@ -13,9 +12,12 @@ from run_iocsh.ioc import (
     IocshStateError,
     IocshTimeoutError,
     RunIocshError,
-    run_iocsh,
-    wait_for,
 )
+from run_iocsh.ioc import (
+    IOC,
+    run_iocsh,
+)
+from run_iocsh.utils import wait_for
 
 __all__ = [
     "IOC",
