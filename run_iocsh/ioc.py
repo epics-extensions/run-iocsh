@@ -26,10 +26,11 @@ import os
 import re
 import shutil
 import subprocess
+import threading
 import time
 from collections.abc import Callable
 from enum import Enum
-from typing import Self
+from typing import BinaryIO, Self
 
 log = logging.getLogger(__name__)
 
@@ -44,6 +45,10 @@ DEFAULT_EXIT_TIMEOUT = 0.0
 DEFAULT_WAIT_FOR_TIMEOUT = 5.0
 DEFAULT_POLL_INTERVAL = 0.1
 DEFAULT_DELAY = 5.0
+DEFAULT_THREAD_TIMEOUT = 5.0
+DEFAULT_THREAD_JOIN_TIMEOUT = 1.0
+
+TAIL_CHARS = 500
 
 
 class RunIocshError(Exception):
@@ -133,8 +138,6 @@ class IOC:
         fail_on: list[str] | None = None,
     ) -> None:
         self.proc = None
-        self.outs = ""
-        self.errs = ""
         self.args = args
         self.executable = executable
         if not shutil.which(self.executable):
@@ -142,6 +145,10 @@ class IOC:
         self.timeout = timeout
         self._fail_on = fail_on
         self.state = self.state_values.INITIALIZED
+        self._stdout_lines: list[str] = []
+        self._stderr_lines: list[str] = []
+        self._stdout_thread: threading.Thread | None = None
+        self._stderr_thread: threading.Thread | None = None
 
     def __enter__(self) -> Self:
         self.start()
@@ -162,9 +169,51 @@ class IOC:
         """Return the subprocess PID, or None if not yet started."""
         return self.proc.pid if self.proc else None
 
+    @property
+    def stdout(self) -> str:
+        """Return accumulated stdout as a single newline-joined string."""
+        return "\n".join(self._stdout_lines)
+
+    @property
+    def stderr(self) -> str:
+        """Return accumulated stderr as a single newline-joined string."""
+        return "\n".join(self._stderr_lines)
+
     def is_running(self) -> bool:
-        """Return True if the subprocess is still running."""
+        """Return True if the subprocess is still running.
+
+        This only reflects subprocess state — it does NOT indicate that iocInit
+        has completed, that records are available, or that CA/PVA is ready to
+        serve clients. Use ``wait_for_output()`` for IOC readiness checks.
+        """
         return self.proc is not None and self.proc.poll() is None
+
+    def _read_stream(
+        self,
+        stream: BinaryIO,
+        lines: list[str],
+        label: str,
+    ) -> None:
+        for raw in iter(stream.readline, b""):
+            line = raw.decode("utf-8", errors="replace").rstrip("\n")
+            lines.append(line)
+            log.debug("[%s] %s", label, line)
+
+    def _join_reader_threads(self) -> None:
+        if self._stdout_thread is not None:
+            self._stdout_thread.join(timeout=DEFAULT_THREAD_TIMEOUT)
+            if self._stdout_thread.is_alive():
+                log.warning(
+                    "stdout reader thread did not finish within %s s",
+                    DEFAULT_THREAD_TIMEOUT,
+                )
+        if self._stderr_thread is not None:
+            self._stderr_thread.join(timeout=DEFAULT_THREAD_TIMEOUT)
+            if self._stderr_thread.is_alive():
+                log.warning(
+                    "stderr reader thread did not finish within %s s",
+                    DEFAULT_THREAD_TIMEOUT,
+                )
 
     def start(self) -> None:
         """Start the IOC subprocess.
@@ -176,18 +225,27 @@ class IOC:
             raise IocshAlreadyRunningError("IOC already running")
 
         self.state = self.state_values.STARTED
-
-        # Reset the output
-        self.outs = ""
-        self.errs = ""
-
-        self._exited = False
+        self._stdout_lines = []
+        self._stderr_lines = []
 
         cmd = [str(item) for item in [self.executable, *self.args]]
         log.debug("Running: %s", " ".join(cmd))
         self.proc = subprocess.Popen(
             cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE
         )
+
+        self._stdout_thread = threading.Thread(
+            target=self._read_stream,
+            args=(self.proc.stdout, self._stdout_lines, "stdout"),
+            daemon=True,
+        )
+        self._stderr_thread = threading.Thread(
+            target=self._read_stream,
+            args=(self.proc.stderr, self._stderr_lines, "stderr"),
+            daemon=True,
+        )
+        self._stdout_thread.start()
+        self._stderr_thread.start()
 
     def exit(self) -> None:
         """Send the exit command to the running IOC."""
@@ -198,17 +256,68 @@ class IOC:
         self.state = self.state_values.EXITED
 
         try:
-            outs, errs = self.proc.communicate(input=b"exit\n", timeout=self.timeout)
-        except subprocess.TimeoutExpired as e:
-            self.proc.kill()
-            # Trying to run "outs, errs = proc.communicate()" can raise:
-            # ValueError: Invalid file object: <_io.BufferedReader name=7>
-            # when stdin is already closed.
-            # In case of timeout, we don't care and just raise an exception
-            raise IocshTimeoutError("Failed to send exit to the IOC") from e
+            self.proc.stdin.write(b"exit\n")
+            self.proc.stdin.flush()
+            self.proc.stdin.close()
+        except OSError:
+            pass  # process already exited
 
-        self.outs = outs.decode("utf-8")
-        self.errs = errs.decode("utf-8")
+        try:
+            self.proc.wait(timeout=self.timeout)
+        except subprocess.TimeoutExpired:
+            self.proc.kill()
+            self.proc.wait()
+            self._join_reader_threads()
+            raise IocshTimeoutError("Failed to send exit to the IOC") from None
+
+        self._join_reader_threads()
+
+    def wait_for_output(
+        self,
+        pattern: str = "iocRun: All initialization complete",
+        timeout: float = DEFAULT_WAIT_FOR_TIMEOUT,
+        poll_interval: float = DEFAULT_POLL_INTERVAL,
+    ) -> None:
+        """Block until ``pattern`` appears in stdout or stderr.
+
+        Returns immediately if the pattern is already present in buffered output.
+
+        Args:
+            pattern: Regex pattern to search for in combined stdout+stderr.
+            timeout: Maximum seconds to wait before raising.
+            poll_interval: Seconds to sleep between polls.
+
+        Raises:
+            IocshStartupError: If the IOC exits before the pattern appears.
+            IocshTimeoutError: If ``timeout`` expires while the IOC is still running.
+        """
+        compiled = re.compile(pattern)
+        deadline = time.monotonic() + timeout
+
+        while True:
+            if compiled.search(self.stdout + self.stderr):
+                return
+
+            if not self.is_running():
+                if self._stdout_thread is not None:
+                    self._stdout_thread.join(timeout=DEFAULT_THREAD_TIMEOUT)
+                if self._stderr_thread is not None:
+                    self._stderr_thread.join(timeout=DEFAULT_THREAD_TIMEOUT)
+                if compiled.search(self.stdout + self.stderr):
+                    return
+                raise IocshStartupError(
+                    f"IOC exited (rc={self.proc.returncode}) before pattern "
+                    f"{pattern!r} appeared.\n"
+                    f"stdout (last {TAIL_CHARS} chars):\n{self.stdout[-TAIL_CHARS:]}\n"
+                    f"stderr (last {TAIL_CHARS} chars):\n{self.stderr[-TAIL_CHARS:]}"
+                )
+
+            if time.monotonic() >= deadline:
+                raise IocshTimeoutError(
+                    f"Timed out after {timeout}s waiting for {pattern!r}"
+                )
+
+            time.sleep(poll_interval)
 
     def check_output(self, fail_on: list[str] | None = None) -> None:
         """Inspect accumulated output and raise on detected errors.
@@ -231,7 +340,7 @@ class IOC:
             raise IocshStateError("check_output() called before exit()")
 
         log.debug("return code: %s", self.proc.returncode)
-        combined = self.outs + self.errs
+        combined = self.stdout + self.stderr
         patterns = RE_BUILTIN_FAIL_ON + tuple(fail_on or [])
         for pattern in patterns:
             m = re.search(pattern, combined, re.MULTILINE)
@@ -255,7 +364,9 @@ class IOC:
                 f"Missing shared library: '{m.group(1)}'"
             )
         if self.proc.returncode != 0:
-            raise IocshProcessError(f"Return code: {self.proc.returncode}\n{self.errs}")
+            raise IocshProcessError(
+                f"Return code: {self.proc.returncode}\n{self.stderr}"
+            )
 
 
 def run_iocsh(
@@ -265,6 +376,7 @@ def run_iocsh(
     executable: str = DEFAULT_EXECUTABLE,
     fail_on: list[str] | None = None,
 ) -> None:
-    """Run an IOC, exit, and parse the output."""
-    with IOC(*args, executable=executable, timeout=timeout, fail_on=fail_on):
+    """Start IOC, wait for iocInit, sleep delay seconds, exit, check output."""
+    with IOC(*args, executable=executable, timeout=timeout, fail_on=fail_on) as ioc:
+        ioc.wait_for_output()
         time.sleep(delay)

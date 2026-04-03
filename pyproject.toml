@@ -64,6 +64,7 @@ lint.per-file-ignores."tests/**" = [
   "INP001",  # packages missing __init__.py
   "PLR2004", # magic values
   "S101",    # asserts
+  "SIM117",  # nested with-statements
 ]
 lint.per-file-ignores."tests/scripts/**" = [
   "T201", # prints

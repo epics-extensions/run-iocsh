@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Fake iocsh: emits ERROR lines then readiness line and exits 0."""
+"""Fake iocsh: emits ERROR: lines, prints the readiness line, then exits 0."""
 
 import sys
 

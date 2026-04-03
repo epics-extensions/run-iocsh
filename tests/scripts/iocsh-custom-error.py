@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Fake iocsh: prints a custom error tag line then the readiness line and exits 0."""
+"""Fake iocsh: emits a CUSTOM_ERROR: line, prints the readiness line, then exits 0."""
 
 import sys
 

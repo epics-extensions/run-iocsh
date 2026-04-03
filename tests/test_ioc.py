@@ -1,6 +1,5 @@
 import logging
 from pathlib import Path
-from unittest.mock import Mock, patch
 
 import pytest
 
@@ -11,6 +10,7 @@ from run_iocsh import (
     IocshMissingSharedLibraryError,
     IocshModuleNotFoundError,
     IocshPatternMatchError,
+    IocshStartupError,
     IocshStateError,
     IocshTimeoutError,
     run_iocsh,
@@ -21,23 +21,16 @@ from run_iocsh.ioc import RE_BUILTIN_FAIL_ON
 SCRIPTS = Path(__file__).parent / "scripts"
 
 
-def mocked_iocsh_module_unavailable_subprocess_communicate_retval(
-    module_name: str, module_version: str
-) -> tuple[bytes, bytes]:
-    outs = b""
-    errs = f"Module {module_name} version {module_version} not available".encode()
-    return outs, errs
-
-
 def test_run_iocsh_output_in_pylog(caplog: pytest.LogCaptureFixture) -> None:
-    with caplog.at_level(logging.INFO):
-        run_iocsh(delay=1)
-    assert "require_registerRecordDeviceDriver" in caplog.text
-    assert "Loading module info records for require" in caplog.text
+    script = str(SCRIPTS / "iocsh-print-and-exit.py")
+    with caplog.at_level(logging.DEBUG, logger="run_iocsh"):
+        run_iocsh(executable=script, delay=0)
+    assert "iocRun: All initialization complete" in caplog.text
 
 
 def test_split_run() -> None:
-    ioc = IOC()
+    script = str(SCRIPTS / "iocsh-wait-for-exit.py")
+    ioc = IOC(executable=script, timeout=5.0)
     assert not ioc.is_running()
     assert ioc.pid is None
 
@@ -50,15 +43,20 @@ def test_split_run() -> None:
 
 
 def test_already_running() -> None:
-    with pytest.raises(IocshAlreadyRunningError) as excinfo, IOC() as ioc:
+    script = str(SCRIPTS / "iocsh-print-and-exit.py")
+    with (
+        pytest.raises(IocshAlreadyRunningError) as excinfo,
+        IOC(executable=script, timeout=5.0) as ioc,
+    ):
         ioc.start()
 
     assert "IOC already running" in str(excinfo.value)
 
 
 def test_doubleexit(caplog: pytest.LogCaptureFixture) -> None:
+    script = str(SCRIPTS / "iocsh-print-and-exit.py")
     with caplog.at_level(logging.WARNING):
-        with IOC() as ioc:
+        with IOC(executable=script, timeout=5.0) as ioc:
             pass
         ioc.exit()
     assert "IOC is not running" in caplog.text
@@ -97,6 +95,59 @@ class TestWaitFor:
             wait_for(lambda: False, timeout=0.05, poll_interval=0.01)
 
 
+class TestWaitForOutput:
+    def test_returns_when_pattern_found(self) -> None:
+        script = str(SCRIPTS / "iocsh-print-and-exit.py")
+        with IOC(executable=script) as ioc:
+            ioc.wait_for_output()
+
+    def test_already_buffered_pattern_returns_immediately(self) -> None:
+        script = str(SCRIPTS / "iocsh-print-and-exit.py")
+        with IOC(executable=script) as ioc:
+            ioc.wait_for_output(timeout=5.0)
+            ioc.wait_for_output(timeout=0.0)
+
+    def test_raises_startup_error_on_crash(self) -> None:
+        script = str(SCRIPTS / "iocsh-crash.py")
+        with pytest.raises(IocshStartupError, match="exited"):
+            with IOC(executable=script) as ioc:
+                ioc.wait_for_output(timeout=5.0)
+
+    def test_raises_timeout_error_while_running(self) -> None:
+        script = str(SCRIPTS / "iocsh-timeout.py")
+        with pytest.raises(IocshTimeoutError):
+            with IOC(executable=script, timeout=0.3) as ioc:
+                ioc.wait_for_output(pattern="WILL_NOT_APPEAR", timeout=0.1)
+
+    def test_stdout_accessible_before_exit(self) -> None:
+        script = str(SCRIPTS / "iocsh-print-and-exit.py")
+        with IOC(executable=script) as ioc:
+            ioc.wait_for_output()
+            assert "iocRun: All initialization complete" in ioc.stdout
+
+    def test_stdout_accessible_after_exit(self) -> None:
+        script = str(SCRIPTS / "iocsh-print-and-exit.py")
+        with IOC(executable=script, timeout=5.0) as ioc:
+            ioc.wait_for_output()
+        assert "iocRun: All initialization complete" in ioc.stdout
+
+    def test_stderr_accessible_after_exit(self) -> None:
+        script = str(SCRIPTS / "iocsh-module-not-found.py")
+        with pytest.raises(IocshModuleNotFoundError):
+            with IOC(executable=script, timeout=5.0) as ioc:
+                ioc.wait_for_output()
+        assert "Module mock version fake not available" in ioc.stderr
+
+    def test_caplog_captures_output_at_debug(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        script = str(SCRIPTS / "iocsh-print-and-exit.py")
+        with caplog.at_level(logging.DEBUG, logger="run_iocsh"):
+            with IOC(executable=script) as ioc:
+                ioc.wait_for_output()
+        assert "iocRun: All initialization complete" in caplog.text
+
+
 class TestExceptions:
     def test_run_iocsh_script_not_found(self) -> None:
         with pytest.raises(FileNotFoundError) as excinfo:
@@ -105,91 +156,66 @@ class TestExceptions:
 
     def test_run_iocsh_cmd_file_not_found(self) -> None:
         filename = "does-not-exist.cmd"
+        script = str(SCRIPTS / "iocsh-cant-open.py")
         with pytest.raises(IocshFileNotFoundError) as excinfo:
-            run_iocsh(filename, delay=1)
+            run_iocsh(filename, executable=script, delay=0.1)
         assert f"No such file or directory: '{filename}'" in str(excinfo.value)
 
-    @patch("subprocess.Popen")
-    def test_run_iocsh_module_version_not_found(self, popen_mock: Mock) -> None:
+    def test_run_iocsh_module_version_not_found(self) -> None:
         module_name = "mock"
         module_version = "fake"
-
-        process_mock = popen_mock.Mock()
-        process_mock.communicate.return_value = (
-            mocked_iocsh_module_unavailable_subprocess_communicate_retval(
-                module_name, module_version
-            )
-        )
-        process_mock.returncode = 0
-        popen_mock.return_value = process_mock
-
+        script = str(SCRIPTS / "iocsh-module-not-found.py")
         with pytest.raises(IocshModuleNotFoundError) as excinfo:
-            run_iocsh("-r", f"{module_name},{module_version}", delay=1)
+            run_iocsh(
+                "-r",
+                f"{module_name},{module_version}",
+                delay=0.1,
+                executable=script,
+            )
         assert (
             str(excinfo.value)
             == f"Module {module_name} version {module_version} not available"
         )
 
     def test_run_iocsh_module_not_found(self) -> None:
+        script = str(SCRIPTS / "iocsh-module-not-found.py")
         with pytest.raises(IocshModuleNotFoundError) as excinfo:
-            run_iocsh("-r", "foo", delay=1)
+            run_iocsh("-r", "foo", executable=script, delay=0)
         assert str(excinfo.value) == "Module foo not available"
 
-    def test_run_iocsh_iocshload_file_not_found(
-        self,
-        tmp_path: Path,
-        caplog: pytest.LogCaptureFixture,
-    ) -> None:
+    def test_run_iocsh_iocshload_file_not_found(self) -> None:
         nonexistent_file = "fake"
-        file_contents = f"""\
-iocshLoad("{nonexistent_file}")
-"""
-        tmp_file = tmp_path / "test_iocshload_file_not_found.cmd"
-        tmp_file.write_text(file_contents)
-
-        with (
-            caplog.at_level(logging.INFO),
-            pytest.raises(IocshFileNotFoundError) as excinfo,
-        ):
-            run_iocsh(tmp_file.as_posix(), delay=2)
-
+        script = str(SCRIPTS / "iocsh-file-not-exist.py")
+        with pytest.raises(IocshFileNotFoundError) as excinfo:
+            run_iocsh(executable=script, delay=0.1)
         assert f"No such file or directory: '{nonexistent_file}'" in str(excinfo.value)
 
-    def test_missing_shared_lib(self, tmp_path: Path) -> None:
-        file_contents = """\
-echo "liblib: cannot open shared object file"
-"""
-        tmp_file = tmp_path / "test_missing_shared_lib.cmd"
-        tmp_file.write_text(file_contents)
-
+    def test_missing_shared_lib(self) -> None:
+        script = str(SCRIPTS / "iocsh-missing-shared-lib.py")
         with pytest.raises(IocshMissingSharedLibraryError) as excinfo:
-            run_iocsh(tmp_file.as_posix(), delay=1)
+            run_iocsh(executable=script, delay=0)
         assert str(excinfo.value) == "Missing shared library: 'liblib'"
 
-    @pytest.mark.parametrize("name", ["iocsh-timeout.bash", "iocsh-stdin-closed.bash"])
+    @pytest.mark.parametrize("name", ["iocsh-timeout.py", "iocsh-stdout-closed.py"])
     def test_run_iocsh_timeout_expired(self, name: str) -> None:
-        test_data_dir = Path(__file__).parent / "scripts"
         with pytest.raises(IocshTimeoutError) as excinfo:
-            run_iocsh(delay=0.1, timeout=0.5, executable=str(test_data_dir / name))
+            run_iocsh(delay=0.1, timeout=0.5, executable=str(SCRIPTS / name))
         assert str(excinfo.value) == "Failed to send exit to the IOC"
 
 
 class TestCheckOutputFailOn:
     def test_builtin_error_pattern_detected(self) -> None:
-        test_data_dir = Path(__file__).parent / "scripts"
-        script = str(test_data_dir / "iocsh-error-output.py")
+        script = str(SCRIPTS / "iocsh-error-output.py")
         with pytest.raises(IocshPatternMatchError, match="ERROR"):
             run_iocsh(delay=0.1, executable=script)
 
     def test_user_fail_on_pattern_raises(self) -> None:
-        test_data_dir = Path(__file__).parent / "scripts"
-        script = str(test_data_dir / "iocsh-custom-error.py")
+        script = str(SCRIPTS / "iocsh-custom-error.py")
         with pytest.raises(IocshPatternMatchError, match="CUSTOM_ERROR:"):
             run_iocsh(delay=0.1, executable=script, fail_on=["CUSTOM_ERROR:"])
 
     def test_user_fail_on_no_match_does_not_raise(self) -> None:
-        test_data_dir = Path(__file__).parent / "scripts"
-        script = str(test_data_dir / "iocsh-custom-error.py")
+        script = str(SCRIPTS / "iocsh-custom-error.py")
         run_iocsh(delay=0.1, executable=script, fail_on=["WILL_NOT_MATCH"])
 
     def test_builtin_fail_on_is_exported(self) -> None:
