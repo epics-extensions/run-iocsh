@@ -20,7 +20,9 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+import errno
 import logging
+import os
 import re
 import shutil
 import subprocess
@@ -47,27 +49,44 @@ class RunIocshError(Exception):
     """Base class for exceptions in this module."""
 
 
-class IocshModuleNotFoundError(RunIocshError):
-    """Exception raised when the required module is not found."""
+class IocshStateError(RunIocshError):
+    """Exception raised for programming errors (wrong state transitions)."""
 
 
-class IocshProcessError(RunIocshError):
-    """Exception raised when the iocsh script exits with a non null return code.
-
-    Only raised if no error was catched (and another exception raised).
-    """
-
-
-class IocshTimeoutExpiredError(RunIocshError):
-    """Exception raised when a timeout occurred trying to send exit to the softIOC."""
-
-
-class IocshAlreadyRunningError(RunIocshError):
+class IocshAlreadyRunningError(IocshStateError):
     """Exception raised when IOC is started a second time."""
 
 
-class MissingSharedLibraryError(RunIocshError):
+class IocshTimeoutError(RunIocshError):
+    """Exception raised when a timeout occurred trying to send exit to the IOC."""
+
+
+class IocshStartupError(RunIocshError):
+    """Exception raised when IOC exits before the expected readiness pattern appears."""
+
+
+class IocshOutputError(RunIocshError):
+    """Base exception for errors detected in IOC output."""
+
+
+class IocshFileNotFoundError(IocshOutputError, FileNotFoundError):
+    """Exception raised when a file referenced in the startup script is not found."""
+
+
+class IocshModuleNotFoundError(IocshOutputError):
+    """Exception raised when the required module is not found."""
+
+
+class IocshMissingSharedLibraryError(IocshOutputError):
     """Exception raised when shared library is missing."""
+
+
+class IocshProcessError(IocshOutputError):
+    """Exception raised when the iocsh script exits with a non null return code."""
+
+
+class IocshPatternMatchError(IocshOutputError):
+    """Exception raised when a fail_on pattern matches the IOC output."""
 
 
 def wait_for(
@@ -181,7 +200,7 @@ class IOC:
             # ValueError: Invalid file object: <_io.BufferedReader name=7>
             # when stdin is already closed.
             # In case of timeout, we don't care and just raise an exception
-            raise IocshTimeoutExpiredError("Failed to send exit to the IOC") from e
+            raise IocshTimeoutError("Failed to send exit to the IOC") from e
 
         self.outs = outs.decode("utf-8")
         self.errs = errs.decode("utf-8")
@@ -209,12 +228,15 @@ class IOC:
         m1 = RE_CANT_OPEN.search(self.outs + self.errs)
         m2 = RE_DOES_NOT_EXIST.search(self.errs)
         if m1 or m2:
-            raise FileNotFoundError(
-                f"No such file or directory: '{m1.group(1) if m1 else m2.group(1)}'"
+            filename = m1.group(1) if m1 else m2.group(1)
+            raise IocshFileNotFoundError(
+                errno.ENOENT, os.strerror(errno.ENOENT), filename
             )
         m = RE_MISSING_SHARED_LIB.search(self.outs + self.errs)
         if m:
-            raise MissingSharedLibraryError(f"Missing shared library: '{m.group(1)}'")
+            raise IocshMissingSharedLibraryError(
+                f"Missing shared library: '{m.group(1)}'"
+            )
         if self.proc.returncode != 0:
             raise IocshProcessError(f"Return code: {self.proc.returncode}\n{self.errs}")
 

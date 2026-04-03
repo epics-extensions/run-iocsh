@@ -7,10 +7,10 @@ import pytest
 from run_iocsh import (
     IOC,
     IocshAlreadyRunningError,
+    IocshFileNotFoundError,
+    IocshMissingSharedLibraryError,
     IocshModuleNotFoundError,
-    IocshProcessError,
-    IocshTimeoutExpiredError,
-    MissingSharedLibraryError,
+    IocshTimeoutError,
     run_iocsh,
     wait_for,
 )
@@ -94,10 +94,7 @@ class TestExceptions:
 
     def test_run_iocsh_cmd_file_not_found(self) -> None:
         filename = "does-not-exist.cmd"
-        # Different versions of require will generate different errors in this
-        # case, which in turn will take different paths in run-iocsh.
-        # Because of this we accept both exception types and check the message.
-        with pytest.raises((FileNotFoundError, IocshProcessError)) as excinfo:
+        with pytest.raises(IocshFileNotFoundError) as excinfo:
             run_iocsh(filename, delay=1)
         assert f"No such file or directory: '{filename}'" in str(excinfo.value)
 
@@ -139,9 +136,13 @@ iocshLoad("{nonexistent_file}")
         tmp_file = tmp_path / "test_iocshload_file_not_found.cmd"
         tmp_file.write_text(file_contents)
 
-        with caplog.at_level(logging.INFO), pytest.raises(FileNotFoundError) as excinfo:
+        with (
+            caplog.at_level(logging.INFO),
+            pytest.raises(IocshFileNotFoundError) as excinfo,
+        ):
             run_iocsh(tmp_file.as_posix(), delay=2)
-        assert f"No such file or directory: '{nonexistent_file}'" == str(excinfo.value)
+
+        assert f"No such file or directory: '{nonexistent_file}'" in str(excinfo.value)
 
     def test_missing_shared_lib(self, tmp_path: Path) -> None:
         file_contents = """\
@@ -150,13 +151,13 @@ echo "liblib: cannot open shared object file"
         tmp_file = tmp_path / "test_missing_shared_lib.cmd"
         tmp_file.write_text(file_contents)
 
-        with pytest.raises(MissingSharedLibraryError) as excinfo:
+        with pytest.raises(IocshMissingSharedLibraryError) as excinfo:
             run_iocsh(tmp_file.as_posix(), delay=1)
         assert str(excinfo.value) == "Missing shared library: 'liblib'"
 
     @pytest.mark.parametrize("name", ["iocsh-timeout.bash", "iocsh-stdin-closed.bash"])
     def test_run_iocsh_timeout_expired(self, name: str) -> None:
         test_data_dir = Path(__file__).parent / "scripts"
-        with pytest.raises(IocshTimeoutExpiredError) as excinfo:
+        with pytest.raises(IocshTimeoutError) as excinfo:
             run_iocsh(delay=0.1, timeout=0.5, executable=str(test_data_dir / name))
         assert str(excinfo.value) == "Failed to send exit to the IOC"
