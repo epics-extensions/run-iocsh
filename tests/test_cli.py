@@ -1,5 +1,3 @@
-from typing import Tuple
-
 import pytest
 
 from run_iocsh.cli import parse_arguments
@@ -18,6 +16,6 @@ from run_iocsh.cli import parse_arguments
         ("-r", "iocstats"),
     ],
 )
-def test_run_exit_without_error_code(args: Tuple[str]) -> int:
+def test_run_exit_without_error_code(args: tuple[str]) -> int:
     # If parse_args fail the test will exit with return value != 0
     parse_arguments(args)

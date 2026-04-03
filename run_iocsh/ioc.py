@@ -27,6 +27,8 @@ import subprocess
 import time
 from enum import Enum
 
+log = logging.getLogger(__name__)
+
 RE_MODULE_NOT_AVAILABLE = re.compile("Module .*? not available")
 RE_CANT_OPEN = re.compile(r"[Cc]an't\s*open\s*(.*?):")
 RE_DOES_NOT_EXIST = re.compile(r"File (.*) does not exist")
@@ -42,8 +44,7 @@ class IocshModuleNotFoundError(RunIocshError):
 
 
 class IocshProcessError(RunIocshError):
-    """
-    Exception raised when the iocsh script exits with a non null return code.
+    """Exception raised when the iocsh script exits with a non null return code.
 
     Only raised if no error was catched (and another exception raised).
     """
@@ -111,7 +112,7 @@ class IOC:
         self._exited = False
 
         cmd = [str(item) for item in [self.executable, *self.args]]
-        logging.debug("Running: %s", " ".join(cmd))
+        log.debug("Running: %s", " ".join(cmd))
         self.proc = subprocess.Popen(
             cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE
         )
@@ -119,7 +120,7 @@ class IOC:
     def exit(self) -> None:
         """Send the exit command to the running IOC."""
         if self.state != self.state_values.STARTED:
-            logging.warning("IOC is not running")
+            log.warning("IOC is not running")
             return
 
         self.state = self.state_values.EXITED
@@ -140,20 +141,20 @@ class IOC:
     def check_output(self) -> None:
         """Log and check output from subprocess."""
         if self.state != self.state_values.EXITED:
-            logging.warning("IOC has not exited yet")
+            log.warning("IOC has not exited yet")
             return
 
-        logging.info(
+        log.info(
             "========== stdout ============================\n"
             + self.outs
             + "=============================================="
         )
-        logging.info(
+        log.info(
             "========== stderr ============================\n"
             + self.errs
             + "=============================================="
         )
-        logging.debug("return code: %s", self.proc.returncode)
+        log.debug("return code: %s", self.proc.returncode)
         m = RE_MODULE_NOT_AVAILABLE.search(self.outs + self.errs)
         if m:
             raise IocshModuleNotFoundError(m.group(0))

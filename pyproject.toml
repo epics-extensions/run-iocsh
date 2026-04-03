@@ -1,38 +1,79 @@
 [build-system]
+build-backend = "setuptools.build_meta"
 requires = [
   "setuptools>=42",
-  "wheel"
+  "wheel",
 ]
-build-backend = "setuptools.build_meta"
+
+[project]
+name = "run-iocsh"
+version = "1.0.1"
+description = "Wrapper to test IOCs"
+readme = { file = "README.rst", content-type = "text/x-rst" }
+keywords = [ "e3", "epics", "ess", "iocsh" ]
+license = { text = "BSD-2 license" }
+maintainers = [
+  { name = "Anders Lindh Olsson", email = "anders.lindh.olsson@ess.eu" },
+]
+authors = [
+  { name = "Anders Lindh Olsson", email = "anders.lindh.olsson@ess.eu" },
+]
+requires-python = ">=3.12"
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: BSD License",
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
+]
+optional-dependencies.dev = [
+  "pytest",
+  "pytest-cov",
+]
+urls.Homepage = "https://gitlab.esss.lu.se/e3/run-iocsh"
+scripts.run-iocsh = "run_iocsh.cli:main"
+
+[tool.setuptools]
+packages.find.where = [ "." ]
 
 [tool.ruff]
-target-version = "py37"  # this is the lowest allowed
+target-version = "py312"
+lint.select = [ "ALL" ]
+lint.ignore = [
+  "COM812",
+  "D105",   # docstrings for magic methods
+  "D107",   # docstrings for __init__ methods
+  "D203",   # incompatibility between ruff lint and ruff format
+  "D211",   # incompatible with D203
+  "EM101",
+  "EM102",  # exceptions may not use (f/) string literals
+  "FIX",    # FIXMEs
+  "G003",   # `logging` messages uses '+'
+  "ISC001", # may cause conflicts when used with the formatter
+  "S603",   # untrusted input to `subprocess`
+  "TD",     # TODOs
+  "TRY003", # long messages outside of the exception class
+]
+lint.per-file-ignores."run_iocsh/**" = [
+  "D100", # "public" module missing docstring
+]
+lint.per-file-ignores."tests/**" = [
+  "D",      # docstyle
+  "INP001", # packages missing __init__.py
+  "S101",   # asserts
+]
+lint.pydocstyle.convention = "google"
 
-[tool.ruff.lint]
-select = ["ALL"]
-ignore = [
-    "ANN101", "ANN102",  # to be deprecated
-    "D211",  # incompatible with D203
-    "D212",  # incompatible with D213
-    "COM812", "ISC001",  # may cause conflicts when used with the formatter
-    "FA100",  # may cause conflicts with py37
-    "D107",  # docstrings for __init__ methods
-    "D105",  # docstrings for magic methods
-    "TD",  # TODOs
-    "FIX",  # FIXMEs
-    "S603",  # untrusted input to `subprocess`
-    "TRY003",  # long messages outside of the exception class
-    "EM101", "EM102",  # exceptions may not use (f/) string literals
-    "G003",  # `logging` messages uses '+'
-    "D203",  # incompatibility between ruff lint and ruff format
-]
-
-[tool.ruff.lint.per-file-ignores]
-"run_iocsh/**" = [
-    "D100",  # "public" module missing docstring
-]
-"tests/**" = [
-    "D",  # docstyle
-    "S101",  # asserts
-    "INP001",  # packages missing __init__.py
-]
+[tool.pymarkdown]
+plugins.MD004.style = "consistent"
+plugins.MD007.indent = 3
+plugins.MD013.line_length = 120
+plugins.MD013.code_blocks = false
+plugins.MD014.enabled = false
+plugins.MD024.allow_different_nesting = true
+plugins.MD029.style = "ordered"
+plugins.MD033.enabled = false
+plugins.MD034.enabled = false
+plugins.MD041.enabled = false

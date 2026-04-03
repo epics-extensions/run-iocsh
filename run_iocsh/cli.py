@@ -23,12 +23,15 @@
 import argparse
 import logging
 import sys
-from typing import List, Optional
 
 from run_iocsh.ioc import RunIocshError, run_iocsh
 
+log = logging.getLogger(__name__)
 
-def parse_arguments(args: Optional[List[str]] = None) -> argparse.Namespace:  # noqa: D103
+
+def parse_arguments(  # noqa: D103
+    args: list[str] | None = None,
+) -> tuple[argparse.Namespace, list[str]]:
     parser = argparse.ArgumentParser(
         description="Run iocsh and send the exit command after <delay> seconds",
     )
@@ -51,13 +54,16 @@ def parse_arguments(args: Optional[List[str]] = None) -> argparse.Namespace:  # 
 
 
 def main() -> None:  # noqa: D103
-    args = parse_arguments()
-    # Run iocsch and send the exit command after <delay> seconds
+    namespace, extra = parse_arguments()
     logging.basicConfig(
         format="%(asctime)s %(levelname)s: %(message)s ", level=logging.DEBUG
     )
     try:
-        run_iocsh(args[0].delay, *args[1], timeout=args[0].timeout)
+        run_iocsh(
+            *extra,
+            delay=namespace.delay,
+            timeout=namespace.timeout,
+        )
     except (RunIocshError, FileNotFoundError):
-        logging.exception("Found an error")
+        log.exception("Found an error")
         sys.exit(1)

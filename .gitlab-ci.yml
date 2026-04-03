@@ -17,20 +17,8 @@ stages:
   - release
   - deploy
 
-run-pre-commit:
-  script:
-    - pre-commit run ruff --all-files
-    - pre-commit run end-of-file-fixer --all-files
-    - pre-commit run trailing-whitespace --all-files
-
-run markdown lint:
-  stage: check
-  image: pipelinecomponents/markdownlint:latest
-  script:
-    - mdl --config .mdlrc .
-
 build-pypi-package:
-  image: python:3.6
+  image: python:3.12
   before_script:
     - pip install build
   script:
@@ -48,13 +36,11 @@ build-pypi-package:
     - run-iocsh -h
     - pytest -v tests
 
-test-conda-python36:
+test-conda-python312:
   extends: .test-conda
   script:
     - run-iocsh -h
-    - coverage run -m pytest
-    - coverage report
-    - coverage xml
+    - pytest -v --cov=run_iocsh --cov-report=term-missing --cov-report=xml tests
   coverage: '/(?i)total.*? (100(?:\.0+)?\%|[1-9]?\d(?:\.\d+)?\%)$/'
   artifacts:
     reports:
@@ -62,22 +48,7 @@ test-conda-python36:
         coverage_format: cobertura
         path: coverage.xml
   variables:
-    PYTHON_VERSION: 3.6
-
-test-conda-python37:
-  extends: .test-conda
-  variables:
-    PYTHON_VERSION: 3.7
-
-test-conda-python38:
-  extends: .test-conda
-  variables:
-    PYTHON_VERSION: 3.8
-
-test-conda-python39:
-  extends: .test-conda
-  variables:
-    PYTHON_VERSION: 3.9
+    PYTHON_VERSION: "3.12"
 
 pages:
   stage: deploy

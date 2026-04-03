@@ -1,24 +1,22 @@
 repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.4.2
+    rev: v0.15.9
     hooks:
-      - id: ruff
+      - id: ruff-check
         args: [ --fix ]
         exclude: ^docs/
       - id: ruff-format
         exclude: ^docs/
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.1.0  # 4.2.0 drops support for py3.6
+    rev: v6.0.0
     hooks:
       - id: end-of-file-fixer
       - id: trailing-whitespace
-  - repo: https://github.com/markdownlint/markdownlint
-    rev: v0.11.0
+  - repo: https://github.com/tox-dev/pyproject-fmt
+    rev: v2.21.0
     hooks:
-      - id: markdownlint
-        name: Markdownlint
-        entry: mdl
-        language: ruby
-        files: \.(md|mdown|markdown)$
-        args:
-          - "--config=.mdlrc"
+    - id: pyproject-fmt
+  - repo: https://github.com/jackdewinter/pymarkdown
+    rev: v0.9.36
+    hooks:
+      - id: pymarkdown

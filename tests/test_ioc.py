@@ -1,6 +1,5 @@
 import logging
 from pathlib import Path
-from typing import Tuple
 from unittest.mock import Mock, patch
 
 import pytest
@@ -18,7 +17,7 @@ from run_iocsh import (
 
 def mocked_iocsh_module_unavailable_subprocess_communicate_retval(
     module_name: str, module_version: str
-) -> Tuple[bytes, bytes]:
+) -> tuple[bytes, bytes]:
     outs = b""
     errs = f"Module {module_name} version {module_version} not available".encode()
     return outs, errs
