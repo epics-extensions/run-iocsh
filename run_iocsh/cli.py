@@ -24,7 +24,13 @@ import argparse
 import logging
 import sys
 
-from run_iocsh.ioc import RunIocshError, run_iocsh
+from run_iocsh.ioc import (
+    DEFAULT_DELAY,
+    DEFAULT_EXECUTABLE,
+    DEFAULT_EXIT_TIMEOUT,
+    RunIocshError,
+    run_iocsh,
+)
 
 log = logging.getLogger(__name__)
 
@@ -34,20 +40,27 @@ def parse_arguments(  # noqa: D103
 ) -> tuple[argparse.Namespace, list[str]]:
     parser = argparse.ArgumentParser(
         description="Run iocsh and send the exit command after <delay> seconds",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
 
     parser.add_argument(
         "--delay",
-        default=5.0,
+        default=DEFAULT_DELAY,
         type=float,
-        help="time (in seconds) to wait before sending the exit command [default: 5]",
+        help="time (in seconds) to wait after iocInit before sending exit",
     )
 
     parser.add_argument(
         "--timeout",
-        default=5,
+        default=DEFAULT_EXIT_TIMEOUT,
         type=float,
-        help="time (in seconds) to wait when sending the exit command [default: 5]",
+        help="time (in seconds) to wait for the IOC to exit after sending exit",
+    )
+
+    parser.add_argument(
+        "--executable",
+        default=DEFAULT_EXECUTABLE,
+        help="IOC executable to run",
     )
 
     return parser.parse_known_args(args)
@@ -63,6 +76,7 @@ def main() -> None:  # noqa: D103
             *extra,
             delay=namespace.delay,
             timeout=namespace.timeout,
+            executable=namespace.executable,
         )
     except (RunIocshError, FileNotFoundError):
         log.exception("Found an error")

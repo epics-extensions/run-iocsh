@@ -9,6 +9,7 @@ from run_iocsh.ioc import (
     MissingSharedLibraryError,
     RunIocshError,
     run_iocsh,
+    wait_for,
 )
 
 __all__ = [
@@ -20,4 +21,5 @@ __all__ = [
     "MissingSharedLibraryError",
     "RunIocshError",
     "run_iocsh",
+    "wait_for",
 ]

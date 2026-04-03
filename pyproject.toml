@@ -60,9 +60,10 @@ lint.per-file-ignores."run_iocsh/**" = [
   "D100", # "public" module missing docstring
 ]
 lint.per-file-ignores."tests/**" = [
-  "D",      # docstyle
-  "INP001", # packages missing __init__.py
-  "S101",   # asserts
+  "D",       # docstyle
+  "INP001",  # packages missing __init__.py
+  "PLR2004", # magic values
+  "S101",    # asserts
 ]
 lint.pydocstyle.convention = "google"
 

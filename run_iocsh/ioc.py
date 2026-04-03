@@ -25,7 +25,9 @@ import re
 import shutil
 import subprocess
 import time
+from collections.abc import Callable
 from enum import Enum
+from typing import Self
 
 log = logging.getLogger(__name__)
 
@@ -33,6 +35,12 @@ RE_MODULE_NOT_AVAILABLE = re.compile("Module .*? not available")
 RE_CANT_OPEN = re.compile(r"[Cc]an't\s*open\s*(.*?):")
 RE_DOES_NOT_EXIST = re.compile(r"File (.*) does not exist")
 RE_MISSING_SHARED_LIB = re.compile(r"(lib.*): cannot open shared object file")
+
+DEFAULT_EXECUTABLE = "iocsh"
+DEFAULT_EXIT_TIMEOUT = 5.0
+DEFAULT_WAIT_FOR_TIMEOUT = 5.0
+DEFAULT_POLL_INTERVAL = 0.1
+DEFAULT_DELAY = 5.0
 
 
 class RunIocshError(Exception):
@@ -62,27 +70,58 @@ class MissingSharedLibraryError(RunIocshError):
     """Exception raised when shared library is missing."""
 
 
+def wait_for(
+    predicate: Callable[[], bool],
+    timeout: float = DEFAULT_WAIT_FOR_TIMEOUT,
+    poll_interval: float = DEFAULT_POLL_INTERVAL,
+) -> None:
+    """Poll ``predicate`` until it returns True or ``timeout`` elapses.
+
+    Exceptions from ``predicate`` are caught and treated as a false result
+    (polling continues until timeout).
+
+    Args:
+        predicate: Callable invoked repeatedly; success when it returns True.
+        timeout: Maximum seconds to wait before giving up.
+        poll_interval: Seconds to sleep between polls.
+
+    Raises:
+        TimeoutError: If the predicate never returns True within ``timeout``.
+    """
+    deadline = time.monotonic() + timeout
+    while True:
+        try:
+            if predicate():
+                return
+        except Exception:  # noqa: BLE001
+            log.debug("wait_for: predicate raised, treating as False", exc_info=True)
+        if time.monotonic() >= deadline:
+            raise TimeoutError(f"Timed out after {timeout}s waiting for predicate")
+        time.sleep(poll_interval)
+
+
 class IOC:
     """Class to wrap IOC process."""
 
-    executable = "iocsh"
     state_values = Enum("state_values", "INITIALIZED STARTED EXITED")
 
     def __init__(
         self,
         *args: str,
-        timeout: float = 5.0,
+        executable: str = DEFAULT_EXECUTABLE,
+        timeout: float = DEFAULT_EXIT_TIMEOUT,
     ) -> None:
         self.proc = None
         self.outs = ""
         self.errs = ""
         self.args = args
+        self.executable = executable
         if not shutil.which(self.executable):
             raise FileNotFoundError(f"No such file or directory: '{self.executable}'")
         self.timeout = timeout
         self.state = self.state_values.INITIALIZED
 
-    def __enter__(self) -> None:
+    def __enter__(self) -> Self:
         self.start()
         return self
 
@@ -94,12 +133,21 @@ class IOC:
     ) -> None:
         self.exit()
 
+    @property
+    def pid(self) -> int | None:
+        """Return the subprocess PID, or None if not yet started."""
+        return self.proc.pid if self.proc else None
+
     def is_running(self) -> bool:
-        """Check if the ioc is already running."""
+        """Return True if the subprocess is still running."""
         return self.proc is not None and self.proc.poll() is None
 
     def start(self) -> None:
-        """Run <self.executable> iocsh script with given command-line args."""
+        """Start the IOC subprocess.
+
+        Raises:
+            IocshAlreadyRunningError: If the IOC is already running.
+        """
         if self.state == self.state_values.STARTED:
             raise IocshAlreadyRunningError("IOC already running")
 
@@ -171,8 +219,13 @@ class IOC:
             raise IocshProcessError(f"Return code: {self.proc.returncode}\n{self.errs}")
 
 
-def run_iocsh(delay: int, *args: str, timeout: float = 5) -> None:
+def run_iocsh(
+    *args: str,
+    delay: float = DEFAULT_DELAY,
+    timeout: float = DEFAULT_EXIT_TIMEOUT,
+    executable: str = DEFAULT_EXECUTABLE,
+) -> None:
     """Run an IOC, exit, and parse the output."""
-    with IOC(*args, timeout=timeout) as ioc:
+    with IOC(*args, executable=executable, timeout=timeout) as ioc:
         time.sleep(delay)
     ioc.check_output()
