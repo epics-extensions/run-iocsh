@@ -1,13 +1,14 @@
 run-iocsh
 =========
 
-Python wrapper to run ``iocsh`` for testing EPICS applications. It starts an IOC (shell), and automatically sends an exit command after a specified delay, raising exceptions if errors occur.
+Python wrapper to run ``iocsh`` (or another IOC executable) for automated
+testing of EPICS applications. It starts an IOC, waits for ``iocInit`` to
+complete, and raises typed exceptions if errors are detected in the output.
 
-Requires Python >= 3.6 (development requires >= 3.7) and an activated e3 environment.
+Requires Python >= 3.12 and an activated e3 environment (or any environment
+providing the IOC executable).
 
-**Repository:** https://gitlab.esss.lu.se/e3/run-iocsh
-
-**Documentation:** http://e3.pages.esss.lu.se/run-iocsh
+**Documentation:** https://e3.pages.ess.eu/run-iocsh
 
 Installation
 ------------
@@ -23,7 +24,7 @@ Quick Start
 
 .. code-block:: console
 
-    $ run-iocsh --delay 5 st.cmd
+    $ run-iocsh st.cmd
 
 **Python Library:**
 
@@ -32,13 +33,10 @@ Quick Start
     from run_iocsh import IOC
 
     with IOC("st.cmd") as ioc:
-        # Test your EPICS PVs, etc.
-        pass
+        ioc.wait_for_output()
+        # IOC is running; interact with PVs here
 
-Documentation
--------------
-
-For detailed usage instructions, examples, and API reference, see the `full documentation <http://e3.pages.esss.lu.se/run-iocsh>`_.
+    # ioc.stdout and ioc.stderr available for inspection
 
 License
 -------
