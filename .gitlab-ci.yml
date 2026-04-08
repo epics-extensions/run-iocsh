@@ -1,7 +1,11 @@
 ---
 include:
-  - 'https://gitlab.esss.lu.se/ics-infrastructure/gitlab-ci-yml/raw/master/PreCommit.gitlab-ci.yml'
-  - 'https://gitlab.esss.lu.se/ics-infrastructure/gitlab-ci-yml/raw/master/ArtifactoryPyPI.gitlab-ci.yml'
+  - project: "ics-infrastructure/gitlab-ci-yml"
+    file: "PreCommit.gitlab-ci.yml"
+  - project: "ics-infrastructure/gitlab-ci-yml"
+    file: "ArtifactoryPyPI.gitlab-ci.yml"
+  - project: "ics-infrastructure/gitlab-ci-yml"
+    file: "SonarScanner.gitlab-ci.yml"
 
 default:
   tags:
@@ -14,6 +18,7 @@ stages:
   - check
   - build
   - test
+  - analyse
   - release
   - deploy
 
@@ -43,12 +48,19 @@ test-conda-python312:
     - pytest -v --cov=run_iocsh --cov-report=term-missing --cov-report=xml tests
   coverage: '/(?i)total.*? (100(?:\.0+)?\%|[1-9]?\d(?:\.\d+)?\%)$/'
   artifacts:
+    paths:
+      - coverage.xml
     reports:
       coverage_report:
         coverage_format: cobertura
         path: coverage.xml
   variables:
     PYTHON_VERSION: "3.12"
+
+run-sonar-scanner:
+  needs:
+    - job: test-python312
+      artifacts: true
 
 pages:
   stage: deploy
