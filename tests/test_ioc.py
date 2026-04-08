@@ -127,7 +127,7 @@ class TestWaitForOutput:
         with pytest.raises(IocshModuleNotFoundError):
             with IOC(executable=script, timeout=5.0) as ioc:
                 ioc.wait_for_output()
-        assert "Module mock version fake not available" in ioc.stderr
+        assert "Error loading module: mock" in ioc.stderr
 
     def test_caplog_captures_output_at_debug(
         self, caplog: pytest.LogCaptureFixture

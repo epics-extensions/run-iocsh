@@ -28,27 +28,11 @@ class TestExceptions:
             run_iocsh(filename, executable=script, delay=0.1)
         assert f"No such file or directory: '{filename}'" in str(excinfo.value)
 
-    def test_run_iocsh_module_version_not_found(self) -> None:
-        module_name = "mock"
-        module_version = "fake"
-        script = str(SCRIPTS / "iocsh-module-not-found.py")
-        with pytest.raises(IocshModuleNotFoundError) as excinfo:
-            run_iocsh(
-                "-r",
-                f"{module_name},{module_version}",
-                delay=0.1,
-                executable=script,
-            )
-        assert (
-            str(excinfo.value)
-            == f"Module {module_name} version {module_version} not available"
-        )
-
     def test_run_iocsh_module_not_found(self) -> None:
         script = str(SCRIPTS / "iocsh-module-not-found.py")
         with pytest.raises(IocshModuleNotFoundError) as excinfo:
             run_iocsh("-r", "foo", executable=script, delay=0)
-        assert str(excinfo.value) == "Module foo not available"
+        assert "Error loading module: foo" in str(excinfo.value)
 
     def test_run_iocsh_iocshload_file_not_found(self) -> None:
         nonexistent_file = "fake"

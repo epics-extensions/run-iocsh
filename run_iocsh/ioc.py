@@ -32,7 +32,7 @@ class _IOCState(Enum):
     EXITED = auto()
 
 
-RE_MODULE_NOT_AVAILABLE = re.compile("Module .*? not available")
+RE_MODULE_NOT_AVAILABLE = re.compile(r"Error loading module:? (\S+?)\.?$", re.MULTILINE)
 RE_CANT_OPEN = re.compile(r"[Cc]an't\s*open\s*(.*?):")
 RE_DOES_NOT_EXIST = re.compile(r"File (.*) does not exist")
 RE_MISSING_SHARED_LIB = re.compile(r"(lib.*): cannot open shared object file")
@@ -281,7 +281,7 @@ class IOC:
                 )
         m = RE_MODULE_NOT_AVAILABLE.search(combined)
         if m:
-            raise IocshModuleNotFoundError(m.group(0))
+            raise IocshModuleNotFoundError(f"Error loading module: {m.group(1)}")
         m1 = RE_CANT_OPEN.search(combined)
         m2 = RE_DOES_NOT_EXIST.search(combined)
         if m1 or m2:
