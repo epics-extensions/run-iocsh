@@ -37,7 +37,7 @@ RE_DOES_NOT_EXIST = re.compile(r"File (.*) does not exist")
 RE_MISSING_SHARED_LIB = re.compile(r"(lib.*): cannot open shared object file")
 
 DEFAULT_EXECUTABLE = "iocsh"
-DEFAULT_EXIT_TIMEOUT = 5.0
+DEFAULT_EXIT_TIMEOUT = 0.0
 DEFAULT_WAIT_FOR_TIMEOUT = 5.0
 DEFAULT_POLL_INTERVAL = 0.1
 DEFAULT_DELAY = 5.0
