@@ -21,51 +21,67 @@ from run_iocsh.ioc import RE_BUILTIN_FAIL_ON
 SCRIPTS = Path(__file__).parent / "scripts"
 
 
-def test_run_iocsh_output_in_pylog(caplog: pytest.LogCaptureFixture) -> None:
-    script = str(SCRIPTS / "iocsh-print-and-exit.py")
-    with caplog.at_level(logging.DEBUG, logger="run_iocsh"):
-        run_iocsh(executable=script, delay=0)
-    assert "iocRun: All initialization complete" in caplog.text
+class TestRunIocsh:
+    def test_output_logged_at_debug(self, caplog: pytest.LogCaptureFixture) -> None:
+        script = str(SCRIPTS / "iocsh-print-and-exit.py")
+        with caplog.at_level(logging.DEBUG, logger="run_iocsh"):
+            run_iocsh(executable=script, delay=0)
+        assert "iocRun: All initialization complete" in caplog.text
+
+    def test_returns_ioc_instance(self) -> None:
+        script = str(SCRIPTS / "iocsh-print-and-exit.py")
+        result = run_iocsh(executable=script, delay=0)
+        assert isinstance(result, IOC)
+
+    def test_returned_ioc_stdout_accessible(self) -> None:
+        script = str(SCRIPTS / "iocsh-print-and-exit.py")
+        result = run_iocsh(executable=script, delay=0)
+        assert "iocRun: All initialization complete" in result.stdout
+
+    def test_returned_ioc_is_exited(self) -> None:
+        script = str(SCRIPTS / "iocsh-print-and-exit.py")
+        result = run_iocsh(executable=script, delay=0)
+        assert not result.is_running()
 
 
-def test_split_run() -> None:
-    script = str(SCRIPTS / "iocsh-wait-for-exit.py")
-    ioc = IOC(executable=script, timeout=5.0)
-    assert not ioc.is_running()
-    assert ioc.pid is None
+class TestIOC:
+    def test_start_exit_lifecycle(self) -> None:
+        script = str(SCRIPTS / "iocsh-wait-for-exit.py")
+        ioc = IOC(executable=script, timeout=5.0)
+        assert not ioc.is_running()
+        assert ioc.pid is None
 
-    ioc.start()
-    assert ioc.is_running()
-    assert ioc.pid is not None
-
-    ioc.exit()
-    assert not ioc.is_running()
-
-
-def test_already_running() -> None:
-    script = str(SCRIPTS / "iocsh-print-and-exit.py")
-    with (
-        pytest.raises(IocshAlreadyRunningError) as excinfo,
-        IOC(executable=script, timeout=5.0) as ioc,
-    ):
         ioc.start()
+        assert ioc.is_running()
+        assert ioc.pid is not None
 
-    assert "IOC already running" in str(excinfo.value)
-
-
-def test_doubleexit(caplog: pytest.LogCaptureFixture) -> None:
-    script = str(SCRIPTS / "iocsh-print-and-exit.py")
-    with caplog.at_level(logging.WARNING):
-        with IOC(executable=script, timeout=5.0) as ioc:
-            pass
         ioc.exit()
-    assert "IOC is not running" in caplog.text
+        assert not ioc.is_running()
 
+    def test_start_while_running_raises(self) -> None:
+        script = str(SCRIPTS / "iocsh-print-and-exit.py")
+        with (
+            pytest.raises(IocshAlreadyRunningError) as excinfo,
+            IOC(executable=script, timeout=5.0) as ioc,
+        ):
+            ioc.start()
 
-def test_check_output_before_exit_raises() -> None:
-    script = str(SCRIPTS / "iocsh-custom-error.py")
-    with pytest.raises(IocshStateError):
-        IOC(executable=script).check_output()
+        assert "IOC already running" in str(excinfo.value)
+
+    def test_exit_while_not_running_warns(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        script = str(SCRIPTS / "iocsh-print-and-exit.py")
+        with caplog.at_level(logging.WARNING):
+            with IOC(executable=script, timeout=5.0) as ioc:
+                pass
+            ioc.exit()
+        assert "IOC is not running" in caplog.text
+
+    def test_check_output_before_exit_raises(self) -> None:
+        script = str(SCRIPTS / "iocsh-custom-error.py")
+        with pytest.raises(IocshStateError):
+            IOC(executable=script).check_output()
 
 
 class TestWaitFor:

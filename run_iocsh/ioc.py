@@ -375,8 +375,14 @@ def run_iocsh(
     timeout: float = DEFAULT_EXIT_TIMEOUT,
     executable: str = DEFAULT_EXECUTABLE,
     fail_on: list[str] | None = None,
-) -> None:
-    """Start IOC, wait for iocInit, sleep delay seconds, exit, check output."""
+) -> IOC:
+    """Start IOC, wait for iocInit, sleep delay seconds, exit, check output.
+
+    Returns:
+        The exited ``IOC`` instance. Access ``.stdout`` and ``.stderr`` for
+        output inspection after the call returns.
+    """
     with IOC(*args, executable=executable, timeout=timeout, fail_on=fail_on) as ioc:
         ioc.wait_for_output()
         time.sleep(delay)
+    return ioc
