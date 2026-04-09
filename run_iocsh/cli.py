@@ -49,7 +49,18 @@ def parse_arguments(  # noqa: D103
         dest="fail_on",
         default=[],
         metavar="PATTERN",
-        help="raise if regex PATTERN matches output (may be given multiple times)",
+        help=(
+            "raise if regex PATTERN matches output (may be given multiple times);"
+            " built-in default: ^ERROR"
+        ),
+    )
+
+    parser.add_argument(
+        "--no-default-fail-on",
+        action="store_true",
+        default=False,
+        dest="no_default_fail_on",
+        help="disable the built-in ^ERROR pattern check",
     )
 
     return parser.parse_known_args(args)
@@ -67,6 +78,7 @@ def main() -> None:  # noqa: D103
             timeout=namespace.timeout,
             executable=namespace.executable,
             fail_on=namespace.fail_on or None,
+            no_builtin_fail_on=namespace.no_default_fail_on,
         )
     except (RunIocshError, FileNotFoundError):
         log.exception("Found an error")

@@ -15,18 +15,23 @@ run-iocsh st.cmd
 $ run-iocsh -h
 usage: run-iocsh [-h] [--delay DELAY] [--timeout TIMEOUT]
                  [--executable EXECUTABLE] [--fail-on PATTERN]
+                 [--no-default-fail-on]
 
 Run iocsh and send the exit command after <delay> seconds
 
 options:
   -h, --help            show this help message and exit
-  --delay DELAY         time (in seconds) to wait after iocInit before
-                        sending the exit command [default: 0]
-  --timeout TIMEOUT     time (in seconds) to wait when sending the exit
-                        command [default: 5]
-  --executable EXEC     iocsh executable to use [default: iocsh]
-  --fail-on PATTERN     raise if regex PATTERN matches stdout/stderr (may be
-                        given multiple times)
+  --delay DELAY         time (in seconds) to wait after iocInit before sending
+                        exit (default: 5.0)
+  --timeout TIMEOUT     time (in seconds) to wait for the IOC to exit after
+                        sending exit (default: 0.0)
+  --executable EXECUTABLE
+                        IOC executable to run (default: iocsh)
+  --fail-on PATTERN     raise if regex PATTERN matches output (may be given
+                        multiple times); built-in default: ^ERROR (default:
+                        [])
+  --no-default-fail-on  disable the built-in ^ERROR pattern check (default:
+                        False)
 ```
 
 ## Examples
@@ -72,12 +77,16 @@ run-iocsh -r iocstats -c "dbLoadRecords('my.db')" st.cmd
 ### Fail on output patterns
 
 ```bash
-run-iocsh --fail-on "^ERROR:" --fail-on "^Warning:.*critical" st.cmd
+run-iocsh --fail-on "^Warning:.*critical" st.cmd
 ```
 
-Each `--fail-on` pattern is **added to** the built-in checks — `^ERROR:` is
-always active on the CLI regardless. To opt out of built-in checks use the
-Python API directly (see `BUILTIN_FAIL_ON` in the library documentation).
+The built-in `^ERROR` pattern is always active. Each `--fail-on` pattern is
+**added on top** of it. To disable the built-in check entirely:
+
+```bash
+run-iocsh --no-default-fail-on st.cmd
+run-iocsh --no-default-fail-on --fail-on "^MY_ERROR:" st.cmd
+```
 
 ## Error handling
 

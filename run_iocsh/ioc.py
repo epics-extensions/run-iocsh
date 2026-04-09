@@ -59,6 +59,7 @@ class IOC:
         executable: str = DEFAULT_EXECUTABLE,
         timeout: float = DEFAULT_EXIT_TIMEOUT,
         fail_on: list[str] | None = None,
+        no_builtin_fail_on: bool = False,
     ) -> None:
         self.proc = None
         self.args = args
@@ -67,6 +68,7 @@ class IOC:
             raise FileNotFoundError(f"No such file or directory: '{self.executable}'")
         self.timeout = timeout
         self._fail_on = fail_on
+        self._no_builtin_fail_on = no_builtin_fail_on
         self.state = IOC.State.INITIALIZED
         self._stdout_lines: list[str] = []
         self._stderr_lines: list[str] = []
@@ -85,7 +87,9 @@ class IOC:
     ) -> None:
         self.exit()
         if exc_type is None:
-            self.check_output(fail_on=self._fail_on)
+            self.check_output(
+                fail_on=self._fail_on, no_builtin_fail_on=self._no_builtin_fail_on
+            )
 
     @property
     def pid(self) -> int | None:
@@ -252,17 +256,24 @@ class IOC:
 
             time.sleep(poll_interval)
 
-    def check_output(self, fail_on: list[str] | None = None) -> None:
+    def check_output(
+        self,
+        *,
+        fail_on: list[str] | None = None,
+        no_builtin_fail_on: bool = False,
+    ) -> None:
         """Inspect accumulated output and raise on detected errors.
 
-        Always applies ``BUILTIN_FAIL_ON`` patterns plus the hardcoded checks
-        (module not found, can't open, missing shared library, file does not
-        exist, non-zero exit code).
+        By default applies ``RE_BUILTIN_FAIL_ON`` patterns (``^ERROR``) plus
+        the hardcoded checks (module not found, can't open, missing shared
+        library, file does not exist, non-zero exit code).
 
         Args:
             fail_on: Additional regex patterns to match against combined
                 stdout+stderr. Pass ``["MY:"]`` to catch ``MY:`` on top of
                 the built-in checks.
+            no_builtin_fail_on: If ``True``, skip the built-in ``^ERROR``
+                pattern check. Hardcoded structural checks are still applied.
 
         Raises:
             IocshStateError: If called before the process has exited.
@@ -274,7 +285,8 @@ class IOC:
 
         log.debug("return code: %s", self.proc.returncode)
         combined = self.stdout + self.stderr
-        patterns = RE_BUILTIN_FAIL_ON + tuple(fail_on or [])
+        builtin = () if no_builtin_fail_on else RE_BUILTIN_FAIL_ON
+        patterns = builtin + tuple(fail_on or [])
         for pattern in patterns:
             m = re.search(pattern, combined, re.MULTILINE)
             if m:
@@ -308,6 +320,7 @@ def run_iocsh(
     timeout: float = DEFAULT_EXIT_TIMEOUT,
     executable: str = DEFAULT_EXECUTABLE,
     fail_on: list[str] | None = None,
+    no_builtin_fail_on: bool = False,
 ) -> IOC:
     """Start IOC, wait for iocInit, sleep delay seconds, exit, check output.
 
@@ -315,7 +328,13 @@ def run_iocsh(
         The exited ``IOC`` instance. Access ``.stdout`` and ``.stderr`` for
         output inspection after the call returns.
     """
-    with IOC(*args, executable=executable, timeout=timeout, fail_on=fail_on) as ioc:
+    with IOC(
+        *args,
+        executable=executable,
+        timeout=timeout,
+        fail_on=fail_on,
+        no_builtin_fail_on=no_builtin_fail_on,
+    ) as ioc:
         ioc.wait_for_output()
         time.sleep(delay)
     return ioc
