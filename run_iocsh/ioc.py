@@ -116,6 +116,8 @@ class IOC:
         lines: list[str],
         label: str,
     ) -> None:
+        # list.append is atomic under CPython's GIL, so concurrent reads from
+        # the main thread (via self.stdout / self.stderr) are safe in practice.
         for raw in iter(stream.readline, b""):
             line = raw.decode("utf-8", errors="replace").rstrip("\n")
             lines.append(line)
