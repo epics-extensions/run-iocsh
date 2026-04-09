@@ -194,10 +194,9 @@ class IOC:
         except subprocess.TimeoutExpired:
             self.proc.kill()
             self.proc.wait()
-            self._join_reader_threads()
             raise IocshTimeoutError("Failed to send exit to the IOC") from None
-
-        self._join_reader_threads()
+        finally:
+            self._join_reader_threads()
 
     def wait_for_output(
         self,
