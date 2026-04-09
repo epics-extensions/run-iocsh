@@ -26,12 +26,6 @@ from run_iocsh.exceptions import (
 log = logging.getLogger(__name__)
 
 
-class _IOCState(Enum):
-    INITIALIZED = auto()
-    STARTED = auto()
-    EXITED = auto()
-
-
 RE_MODULE_NOT_AVAILABLE = re.compile(r"Error loading module:? (\S+?)\.?$", re.MULTILINE)
 RE_CANT_OPEN = re.compile(r"[Cc]an't\s*open\s*(.*?):")
 RE_DOES_NOT_EXIST = re.compile(r"File (.*) does not exist")
@@ -52,6 +46,13 @@ TAIL_CHARS = 500
 class IOC:
     """Class to wrap IOC process."""
 
+    class State(Enum):
+        """Lifecycle state of the IOC subprocess."""
+
+        INITIALIZED = auto()
+        STARTED = auto()
+        EXITED = auto()
+
     def __init__(
         self,
         *args: str,
@@ -66,7 +67,7 @@ class IOC:
             raise FileNotFoundError(f"No such file or directory: '{self.executable}'")
         self.timeout = timeout
         self._fail_on = fail_on
-        self.state = _IOCState.INITIALIZED
+        self.state = IOC.State.INITIALIZED
         self._stdout_lines: list[str] = []
         self._stderr_lines: list[str] = []
         self._stdout_thread: threading.Thread | None = None
@@ -146,14 +147,14 @@ class IOC:
             IocshAlreadyRunningError: If the IOC is already running.
             IocshStateError: If the IOC has already exited.
         """
-        if self.state == _IOCState.STARTED:
+        if self.state is IOC.State.STARTED:
             raise IocshAlreadyRunningError("IOC already running")
-        if self.state == _IOCState.EXITED:
+        if self.state is IOC.State.EXITED:
             raise IocshStateError(
                 "IOC has already exited; create a new instance to run again"
             )
 
-        self.state = _IOCState.STARTED
+        self.state = IOC.State.STARTED
         self._stdout_lines = []
         self._stderr_lines = []
 
@@ -178,11 +179,11 @@ class IOC:
 
     def exit(self) -> None:
         """Send the exit command to the running IOC."""
-        if self.state != _IOCState.STARTED:
+        if self.state is not IOC.State.STARTED:
             log.warning("IOC is not running")
             return
 
-        self.state = _IOCState.EXITED
+        self.state = IOC.State.EXITED
 
         try:
             self.proc.stdin.write(b"exit\n")
@@ -220,7 +221,7 @@ class IOC:
             IocshStartupError: If the IOC exits before the pattern appears.
             IocshTimeoutError: If ``timeout`` expires while the IOC is still running.
         """
-        if self.state != _IOCState.STARTED:
+        if self.state is not IOC.State.STARTED:
             raise IocshStateError("wait_for_output() called before start()")
 
         compiled = re.compile(pattern)
@@ -268,7 +269,7 @@ class IOC:
             IocshPatternMatchError: If any pattern matches the output.
             IocshProcessError: If the process exited with a non-zero code.
         """
-        if self.state != _IOCState.EXITED:
+        if self.state is not IOC.State.EXITED:
             raise IocshStateError("check_output() called before exit()")
 
         log.debug("return code: %s", self.proc.returncode)
