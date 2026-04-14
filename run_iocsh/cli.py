@@ -50,8 +50,8 @@ def parse_arguments(  # noqa: D103
         default=[],
         metavar="PATTERN",
         help=(
-            "raise if regex PATTERN matches output (may be given multiple times);"
-            " built-in default: ^ERROR"
+            "raise if regex PATTERN matches output; ^ERROR is always checked"
+            " (may be given multiple times)"
         ),
     )
 
@@ -60,7 +60,7 @@ def parse_arguments(  # noqa: D103
         action="store_true",
         default=False,
         dest="no_default_fail_on",
-        help="disable the built-in ^ERROR pattern check",
+        help="disable the always-active ^ERROR check",
     )
 
     return parser.parse_known_args(args)

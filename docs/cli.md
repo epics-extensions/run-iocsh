@@ -27,10 +27,10 @@ options:
                         sending exit (default: 0.0)
   --executable EXECUTABLE
                         IOC executable to run (default: iocsh)
-  --fail-on PATTERN     raise if regex PATTERN matches output (may be given
-                        multiple times); built-in default: ^ERROR (default:
+  --fail-on PATTERN     raise if regex PATTERN matches output; ^ERROR is
+                        always checked (may be given multiple times) (default:
                         [])
-  --no-default-fail-on  disable the built-in ^ERROR pattern check (default:
+  --no-default-fail-on  disable the always-active ^ERROR check (default:
                         False)
 ```
 
