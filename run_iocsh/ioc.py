@@ -30,7 +30,7 @@ RE_MODULE_NOT_AVAILABLE = re.compile(r"Error loading module:? (\S+?)\.?$", re.MU
 RE_CANT_OPEN = re.compile(r"[Cc]an't\s*open\s*(.*?):")
 RE_DOES_NOT_EXIST = re.compile(r"File (.*) does not exist")
 RE_MISSING_SHARED_LIB = re.compile(r"(lib.*): cannot open shared object file")
-RE_BUILTIN_FAIL_ON: tuple[str, ...] = (r"^ERROR",)
+RE_BUILTIN_FAIL_ON = r"^ERROR"
 
 DEFAULT_EXECUTABLE = "iocsh"
 DEFAULT_EXIT_TIMEOUT = 0.0
@@ -264,7 +264,7 @@ class IOC:
     ) -> None:
         """Inspect accumulated output and raise on detected errors.
 
-        By default applies ``RE_BUILTIN_FAIL_ON`` patterns (``^ERROR``) plus
+        By default applies the ``RE_BUILTIN_FAIL_ON`` pattern (``^ERROR``) plus
         the hardcoded checks (module not found, can't open, missing shared
         library, file does not exist, non-zero exit code).
 
@@ -285,7 +285,7 @@ class IOC:
 
         log.debug("return code: %s", self.proc.returncode)
         combined = self.stdout + self.stderr
-        builtin = () if no_builtin_fail_on else RE_BUILTIN_FAIL_ON
+        builtin = () if no_builtin_fail_on else (RE_BUILTIN_FAIL_ON,)
         patterns = builtin + tuple(fail_on or [])
         for pattern in patterns:
             m = re.search(pattern, combined, re.MULTILINE)

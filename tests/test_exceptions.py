@@ -70,8 +70,8 @@ class TestCheckOutputFailOn:
         run_iocsh(delay=0.1, executable=script, fail_on=["WILL_NOT_MATCH"])
 
     def test_builtin_fail_on_is_exported(self) -> None:
-        assert isinstance(RE_BUILTIN_FAIL_ON, tuple)
-        assert any("ERROR" in p for p in RE_BUILTIN_FAIL_ON)
+        assert isinstance(RE_BUILTIN_FAIL_ON, str)
+        assert "ERROR" in RE_BUILTIN_FAIL_ON
 
     def test_fail_on_is_additive_to_builtins(self) -> None:
         # Builtins still fire even when a custom fail_on is also passed
