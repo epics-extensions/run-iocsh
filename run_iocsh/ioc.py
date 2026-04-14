@@ -44,7 +44,11 @@ TAIL_CHARS = 500
 
 
 class IOC:
-    """Class to wrap IOC process."""
+    """Class to wrap IOC process.
+
+    Not thread-safe: all public methods should be called from a single thread.
+    Internal reader threads are managed by the class itself.
+    """
 
     class State(Enum):
         """Lifecycle state of the IOC subprocess."""
