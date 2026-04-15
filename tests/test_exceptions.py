@@ -73,8 +73,7 @@ class TestCheckOutputFailOn:
         assert isinstance(RE_BUILTIN_FAIL_ON, str)
         assert "ERROR" in RE_BUILTIN_FAIL_ON
 
-    def test_fail_on_is_additive_to_builtins(self) -> None:
-        # Builtins still fire even when a custom fail_on is also passed
+    def test_fail_on_replaces_default(self) -> None:
+        # Passing fail_on= replaces DEFAULT_FAIL_ON; ^ERROR is no longer checked
         script = str(SCRIPTS / "iocsh-error-output.py")
-        with pytest.raises(IocshPatternMatchError, match="ERROR"):
-            run_iocsh(delay=0.1, executable=script, fail_on=["WILL_NOT_MATCH"])
+        run_iocsh(delay=0.1, executable=script, fail_on=("WILL_NOT_MATCH",))

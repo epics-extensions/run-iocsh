@@ -8,6 +8,7 @@ import shutil
 import subprocess
 import threading
 import time
+from collections.abc import Sequence
 from enum import Enum, auto
 from typing import BinaryIO, Self
 
@@ -31,6 +32,7 @@ RE_CANT_OPEN = re.compile(r"[Cc]an't\s*open\s*(.*?):")
 RE_DOES_NOT_EXIST = re.compile(r"File (.*) does not exist")
 RE_MISSING_SHARED_LIB = re.compile(r"(lib.*): cannot open shared object file")
 RE_BUILTIN_FAIL_ON = r"^ERROR"
+DEFAULT_FAIL_ON: tuple[str, ...] = (RE_BUILTIN_FAIL_ON,)
 
 DEFAULT_EXECUTABLE = "iocsh"
 DEFAULT_EXIT_TIMEOUT = 0.0
@@ -62,8 +64,7 @@ class IOC:
         *args: str,
         executable: str = DEFAULT_EXECUTABLE,
         timeout: float = DEFAULT_EXIT_TIMEOUT,
-        fail_on: list[str] | None = None,
-        no_builtin_fail_on: bool = False,
+        fail_on: Sequence[str] = DEFAULT_FAIL_ON,
     ) -> None:
         self.proc = None
         self.args = args
@@ -72,7 +73,6 @@ class IOC:
             raise FileNotFoundError(f"No such file or directory: '{self.executable}'")
         self.timeout = timeout
         self._fail_on = fail_on
-        self._no_builtin_fail_on = no_builtin_fail_on
         self.state = IOC.State.INITIALIZED
         self._stdout_lines: list[str] = []
         self._stderr_lines: list[str] = []
@@ -91,9 +91,7 @@ class IOC:
     ) -> None:
         self.exit()
         if exc_type is None:
-            self.check_output(
-                fail_on=self._fail_on, no_builtin_fail_on=self._no_builtin_fail_on
-            )
+            self.check_output(fail_on=self._fail_on)
 
     @property
     def pid(self) -> int | None:
@@ -263,25 +261,26 @@ class IOC:
     def check_output(
         self,
         *,
-        fail_on: list[str] | None = None,
-        no_builtin_fail_on: bool = False,
+        fail_on: Sequence[str] = DEFAULT_FAIL_ON,
     ) -> None:
         """Inspect accumulated output and raise on detected errors.
 
-        By default applies the ``RE_BUILTIN_FAIL_ON`` pattern (``^ERROR``) plus
+        By default applies the ``DEFAULT_FAIL_ON`` patterns (``^ERROR``) plus
         the hardcoded checks (module not found, can't open, missing shared
         library, file does not exist, non-zero exit code).
 
         Args:
-            fail_on: Additional regex patterns to match against combined
-                stdout+stderr. Pass ``["MY:"]`` to catch ``MY:`` on top of
-                the built-in checks.
-            no_builtin_fail_on: If ``True``, skip the built-in ``^ERROR``
-                pattern check. Hardcoded structural checks are still applied.
+            fail_on: Regex patterns to match against combined stdout+stderr.
+                Replaces ``DEFAULT_FAIL_ON`` entirely — pass
+                ``(*DEFAULT_FAIL_ON, "MY:")`` to extend rather than replace.
+                Pass ``()`` to disable pattern checks altogether.
 
         Raises:
             IocshStateError: If called before the process has exited.
             IocshPatternMatchError: If any pattern matches the output.
+            IocshModuleNotFoundError: If a module failed to load.
+            IocshFileNotFoundError: If a file could not be opened or does not exist.
+            IocshMissingSharedLibraryError: If a required shared library is missing.
             IocshProcessError: If the process exited with a non-zero code.
         """
         if self.state is not IOC.State.EXITED:
@@ -289,9 +288,7 @@ class IOC:
 
         log.debug("return code: %s", self.proc.returncode)
         combined = self.stdout + self.stderr
-        builtin = () if no_builtin_fail_on else (RE_BUILTIN_FAIL_ON,)
-        patterns = builtin + tuple(fail_on or [])
-        for pattern in patterns:
+        for pattern in fail_on:
             m = re.search(pattern, combined, re.MULTILINE)
             if m:
                 raise IocshPatternMatchError(
@@ -323,8 +320,7 @@ def run_iocsh(
     delay: float = DEFAULT_DELAY,
     timeout: float = DEFAULT_EXIT_TIMEOUT,
     executable: str = DEFAULT_EXECUTABLE,
-    fail_on: list[str] | None = None,
-    no_builtin_fail_on: bool = False,
+    fail_on: Sequence[str] = DEFAULT_FAIL_ON,
 ) -> IOC:
     """Start IOC, wait for iocInit, sleep delay seconds, exit, check output.
 
@@ -337,7 +333,6 @@ def run_iocsh(
         executable=executable,
         timeout=timeout,
         fail_on=fail_on,
-        no_builtin_fail_on=no_builtin_fail_on,
     ) as ioc:
         ioc.wait_for_output()
         time.sleep(delay)

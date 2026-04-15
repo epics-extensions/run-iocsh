@@ -9,6 +9,7 @@ from run_iocsh.ioc import (
     DEFAULT_DELAY,
     DEFAULT_EXECUTABLE,
     DEFAULT_EXIT_TIMEOUT,
+    DEFAULT_FAIL_ON,
     run_iocsh,
 )
 
@@ -72,13 +73,13 @@ def main() -> None:  # noqa: D103
         format="%(asctime)s %(levelname)s: %(message)s ", level=logging.DEBUG
     )
     try:
+        base = () if namespace.no_default_fail_on else DEFAULT_FAIL_ON
         run_iocsh(
             *extra,
             delay=namespace.delay,
             timeout=namespace.timeout,
             executable=namespace.executable,
-            fail_on=namespace.fail_on or None,
-            no_builtin_fail_on=namespace.no_default_fail_on,
+            fail_on=base + tuple(namespace.fail_on),
         )
     except (RunIocshError, FileNotFoundError):
         log.exception("Found an error")
