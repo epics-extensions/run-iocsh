@@ -92,3 +92,11 @@ run-iocsh --no-default-fail-on --fail-on "^MY_ERROR:" st.cmd
 
 The tool exits with status 1 if any `RunIocshError` or `FileNotFoundError`
 occurs. All errors are logged with full context.
+
+In addition to the configurable `^ERROR` pattern check, the following
+conditions are always detected and raised as errors:
+
+- Failed module load (`Error loading module: ...`) — `IocshModuleNotFoundError`
+- File not found (`Can't open ...` / `File ... does not exist`) — `IocshFileNotFoundError`
+- Missing shared library (`lib...: cannot open shared object file`) — `IocshMissingSharedLibraryError`
+- Non-zero exit code — `IocshProcessError`
