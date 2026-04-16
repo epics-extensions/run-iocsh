@@ -1,60 +1,102 @@
 # Command Line Interface
 
-The `run-iocsh` command-line tool provides a simple way to run an IOC (Input/Output Controller)
-and automatically send an exit command after a specified delay. This is particularly useful for testing EPICS applications.
+The `run-iocsh` command-line tool runs an IOC, waits for `iocInit` to complete,
+sleeps for a configurable delay, then sends an exit command and checks the output.
 
 ## Basic usage
 
-The tool runs `iocsh` with the provided arguments, waits for a specified delay, then sends an "exit" command to terminate
-the IOC cleanly.
+```bash
+run-iocsh st.cmd
+```
 
 ## Command line options
 
-Let's see the available command-line options:
-
-```bash
+```text
 $ run-iocsh -h
 usage: run-iocsh [-h] [--delay DELAY] [--timeout TIMEOUT]
+                 [--executable EXECUTABLE] [--fail-on PATTERN]
+                 [--no-default-fail-on]
 
 Run iocsh and send the exit command after <delay> seconds
 
 options:
-  -h, --help         show this help message and exit
-  --delay DELAY      time (in seconds) to wait before sending the exit command [default: 5]
-  --timeout TIMEOUT  time (in seconds) to wait when sending the exit command [default: 5]
+  -h, --help            show this help message and exit
+  --delay DELAY         time (in seconds) to wait after iocInit before sending
+                        exit (default: 5.0)
+  --timeout TIMEOUT     time (in seconds) to wait for the IOC to exit after
+                        sending exit (default: 0.0)
+  --executable EXECUTABLE
+                        IOC executable to run (default: iocsh)
+  --fail-on PATTERN     raise if regex PATTERN matches output; ^ERROR is
+                        always checked (may be given multiple times) (default:
+                        [])
+  --no-default-fail-on  disable the always-active ^ERROR check (default:
+                        False)
 ```
 
 ## Examples
 
-### Running with default settings
+### Default settings
 
-The simplest usage runs `iocsh` with default settings (5-second delay, 5-second timeout):
+Runs `iocsh`, waits for `iocInit` to complete, then exits immediately:
 
 ```bash
-$ run-iocsh st.cmd
+run-iocsh st.cmd
 ```
 
-### Customizing delay and timeout
-
-You can customize the delay before sending the exit command and the timeout for the exit operation:
+### Custom delay and timeout
 
 ```bash
-$ run-iocsh --delay 10 --timeout 3 st.cmd
+run-iocsh --delay 10 --timeout 3 st.cmd
 ```
 
-All arguments after the options are passed directly to `iocsh`:
+`--delay` is the settle time **after** `iocInit` completes, not a total wait.
+The tool always waits for `iocRun: All initialization complete` before sleeping.
+
+### Non-default executables
+
+Pass `--executable` to use any IOC binary. Extra arguments are forwarded as-is:
 
 ```bash
-$ run-iocsh -r iocstats
+# Standard EPICS base soft IOC (EPICS 7+)
+run-iocsh --executable softIocPVA -D /path/to/softIoc.dbd st.cmd
+
+# Compiled IOC application
+run-iocsh --executable /path/to/my/ioc
 ```
 
+### Passing arguments to iocsh
+
+All unrecognised arguments are passed through to the underlying executable:
+
 ```bash
-$ run-iocsh -r iocstats -c dbLoadRecords("my.db") -c dbl
+run-iocsh -r iocstats st.cmd
+run-iocsh -r iocstats -c "dbLoadRecords('my.db')" st.cmd
+```
+
+### Fail on output patterns
+
+```bash
+run-iocsh --fail-on "^Warning:.*critical" st.cmd
+```
+
+The built-in `^ERROR` pattern is always active. Each `--fail-on` pattern is
+**added on top** of it. To disable the built-in check entirely:
+
+```bash
+run-iocsh --no-default-fail-on st.cmd
+run-iocsh --no-default-fail-on --fail-on "^MY_ERROR:" st.cmd
 ```
 
 ## Error handling
 
-The command-line tool exits with a non-zero status code if any errors occur. All errors are logged with detailed
-information to help diagnose issues.
+The tool exits with status 1 if any `RunIocshError` or `FileNotFoundError`
+occurs. All errors are logged with full context.
 
-Common error scenarios include missing files, unavailable EPICS modules, process errors, timeouts, and missing shared libraries.
+In addition to the configurable `^ERROR` pattern check, the following
+conditions are always detected and raised as errors:
+
+- Failed module load (`Error loading module: ...`) — `IocshModuleNotFoundError`
+- File not found (`Can't open ...` / `File ... does not exist`) — `IocshFileNotFoundError`
+- Missing shared library (`lib...: cannot open shared object file`) — `IocshMissingSharedLibraryError`
+- Non-zero exit code — `IocshProcessError`

@@ -13,3 +13,4 @@ pkg/
 .vscode
 venv/
 .idea/
+.cursor/

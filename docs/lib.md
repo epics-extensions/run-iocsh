@@ -1,188 +1,220 @@
 # Python Library
 
-The `run-iocsh` package provides a Python library for programmatically running and controlling IOC processes.
-This is useful for, for example, automated testing.
+The `run-iocsh` package provides a Python library for programmatically running
+and controlling IOC processes. The main exports are:
 
-The main components of the library are:
+- **`IOC`**: context manager for managing an IOC process
+- **`run_iocsh()`**: convenience wrapper for simple run-and-check use cases
+- **`wait_for()`**: standalone polling utility for readiness checks
+- **Exception classes**: typed errors for different failure modes
 
-- **`IOC`**: A class for managing IOC processes
-- **`run_iocsh()`**: A convenience function for simple use cases
-- **Exception classes**: For handling different error conditions (see API reference for details)
+## Usage patterns
 
-## Using the `IOC` class
+Both patterns use the same `IOC` class. Output is checked automatically when
+the context manager exits — any errors in stdout or stderr raise a typed
+exception. Access `ioc.stdout` and `ioc.stderr` to inspect the output directly.
 
-The most convenient way to use the `IOC` class is as a context manager:
+### Run-and-check
 
-```python
-with IOC("st.cmd") as ioc:
-    # Interact with IOC
-    pass
-
-ioc.check_output()
-# Parse `ioc.outs` and `ioc.errs` to assert messages
-```
-
-For more control, you can manually start and stop the IOC:
+Start the IOC, wait for `iocInit` to complete, then exit. Useful for
+module-loading tests, `dbl` output checks, or startup script validation.
 
 ```python
-ioc = IOC("st.cmd", timeout=10.0)
-
-try:
-    ioc.start()
-    print(f"IOC started: {ioc.is_running()}")
-
-    ioc.exit()
-    print(f"IOC stopped: {ioc.is_running()}")
-
-    ioc.check_output()
-
-except Exception as e:
-    print(f"Error: {e}")
-    if ioc.is_running():
-        ioc.exit()
-```
-
-This can be handy to, for example, start a simulated device together with the IOC.
-
-## Using the `run_iocsh` function
-
-```python
-DELAY = 5  # seconds
-
-try:
-    run_iocsh(DELAY, "st.cmd")
-    print("IOC completed successfully")
-except RunIocshError as e:
-    print(f"IOC failed: {e}")
-```
-
-You can also provide a custom timeout:
-
-```python
-run_iocsh(DELAY, "st.cmd", timeout=10)
-```
-
-## Error handling
-
-The library provides specific exception types for different error conditions. Here's a practical example of error handling:
-
-```python
-try:
-    with IOC("st.cmd") as ioc:
-        # Your code here
-        pass
-except RunIocshError as e:
-    print(f"IOC error: {e}")
-except FileNotFoundError as e:
-    print(f"File not found: {e}")
-except Exception as e:
-    print(f"Unexpected error: {e}")
-```
-
-## Exception reference
-
-For detailed information about all available exception types, their specific use cases, and inheritance hierarchy,
-see the [API reference](autoapi/run_iocsh/index.html#exceptions).
-
-## Examples
-
-Here are examples based on common usage patterns:
-
-```python
-import os
-from pathlib import Path
+import re
 from run_iocsh import IOC
 
-test_dir = Path(__file__).absolute().parent
-cmd_file = test_dir / "cmds" / "test.cmd"
-
-ioc = IOC(cmd_file.as_posix())
-
-try:
-    with ioc:
-        import time
-        time.sleep(10)  # Wait for IOC to initialize
-
-        print(f"IOC running: {ioc.is_running()}")
-        # Add your test code here
-
-except Exception as e:
-    print(f"Test failed: {e}")
-    ioc.check_output()
+with IOC("st.cmd") as ioc:
+    ioc.wait_for_output()
+# output checked automatically; inspect stdout for assertions
+pvs = re.findall(r"^MY_IOC:(.+)$", ioc.stdout, re.MULTILINE)
+assert "SomeRecord" in pvs
 ```
+
+`run_iocsh()` is a one-liner for this pattern:
+
+```python
+from run_iocsh import run_iocsh
+
+ioc = run_iocsh("st.cmd")
+# ioc.stdout / ioc.stderr available for inspection
+```
+
+### Live IOC
+
+Keep the IOC running while tests interact with it over CA or PVA:
 
 ```python
 import pytest
-from pathlib import Path
-from run_iocsh import IOC
+from p4p.client.thread import Context
+from run_iocsh import IOC, wait_for
 
-# Session based scope can be handy to re-use the same IOC instead of starting one per test function
+
 @pytest.fixture(scope="session")
 def ioc():
-    """Session-scoped IOC fixture for all tests."""
-    test_script = Path(__file__).absolute().parent / "test.cmd"
-    with IOC(test_script) as instance:
-        yield instance
-    ioc.check_output()  # If you want to access stdout and stderr, else this can be left out
+    with IOC("st.cmd") as proc:
+        proc.wait_for_output()                                    # wait for iocInit
+        wait_for(lambda: ctxt.get("MY:IOC:Ready") is not None)    # wait for PVA (optional)
+        yield proc
 
-@pytest.mark.usefixtures("ioc")
-def test_my_ioc_functionality():
-    """Test that uses the session-scoped IOC."""
-    # Add your test code here
+
+@pytest.fixture(scope="session")
+def ctxt():
+    with Context("pva") as ctx:
+        yield ctx
+
+
+def test_pv_value(ioc, ctxt):
+    assert ctxt.get("MY:IOC:SomePV") == 42
 ```
+
+## Readiness
+
+EPICS IOCs typically go through up to three phases before they are fully ready:
+
+### Phase 1 — iocInit complete
+
+All IOCs print this line when `iocInit` finishes:
 
 ```python
-import time
-from run_iocsh import IOC
-from p4p.client.thread import Context
-
-def test_pv_read_write():
-    with IOC("test.cmd"), Context("pva") as ctxt:
-        time.sleep(10)  # Wait for IOC to initialize
-
-        pv_write = "PREFIX:TestString-SP"
-        pv_read = "PREFIX:TestString-RB"
-
-        test_value = "Some value"
-        ctxt.put(pv_write, test_value)
-
-        result = ctxt.get(pv_read)
-        assert result == test_value
+ioc.wait_for_output()  # default: "iocRun: All initialization complete"
 ```
+
+### Phase 2 — protocol or module layer ready (optional)
+
+Some modules initialise asynchronously after iocInit. Use `wait_for` to poll
+until a PV becomes available or another condition is met:
 
 ```python
-import asyncio
-from run_iocsh import IOC
-from p4p.client.asyncio import Context
-
-# Instead of having to sleep for a set time, we can await the writes and the reads
-async def test_pv_read_write_async():
-    with IOC("test.cmd") as ioc:
-        async with Context("pva") as ctxt:
-            pv_write = "PREFIX:TestString-SP"
-            pv_read = "PREFIX:TestString-RB"
-
-            test_value = "Some value"
-            await ctxt.put(pv_write, test_value)
-
-            result = await ctxt.get(pv_read)
-            assert result == test_value
+wait_for(lambda: ctxt.get("MY:IOC:Ready") is not None, timeout=10)
 ```
 
-### Passing arguments to `iocsh`
+### Phase 3 — background poll settled (optional)
 
-The `IOC` class accepts arbitrary arguments that are passed directly to the `iocsh` command:
+Drivers that poll a device in the background may need time after phase 2 before
+their first values arrive. This is driver-specific; use an explicit
+`time.sleep()` when necessary.
+
+## `wait_for`
+
+Poll a predicate until it returns `True`. Exceptions raised by the predicate
+are swallowed and treated as `False`, which is useful when the condition depends
+on a resource that may not yet be available:
 
 ```python
-from run_iocsh import IOC
+from run_iocsh import wait_for
 
-# Load EPICS modules
-ioc = IOC("-r", "iocstats", "-r", "autosave")
+# context.get() raises until the IOC is ready - wait_for retries silently
+wait_for(lambda: ctxt.get("MY:PV") is not None, timeout=10)
 
-# Load database files
-ioc = IOC("st.cmd", "-c", "dbLoadRecords('my.db')")
+# Works for any predicate
+wait_for(lambda: save_file.exists(), timeout=10)
 ```
 
-## API reference
+Raises `TimeoutError` on expiry.
 
-For complete API documentation, see the [auto-generated API reference](autoapi/run_iocsh/index.html).
+## `wait_for_output`
+
+Block until a pattern appears in stdout or stderr:
+
+```python
+# Default: "iocRun: All initialization complete" - works for all soft IOC variants
+ioc.wait_for_output()
+
+# Custom pattern for a specific module readiness signal
+ioc.wait_for_output("autosave: All ok", timeout=10)
+
+# Returns immediately if pattern already in accumulated output
+ioc.wait_for_output()  # second call is instant
+```
+
+If the IOC exits before the pattern appears, raises `IocshStartupError` with
+the last 500 characters of stdout and stderr. If the timeout expires while the
+IOC is still running, raises `IocshTimeoutError`.
+
+## Non-default executables
+
+Pass `executable=` to use any IOC binary. Extra arguments for the executable
+go into positional arguments. `softIocPVA` is available with EPICS base 7+
+and can be used without e3:
+
+```python
+# Standard EPICS base soft IOC
+IOC("-D", "/path/to/softIoc.dbd", "st.cmd", executable="softIocPVA")
+
+# Compiled IOC application
+IOC(executable="/path/to/my/ioc")
+```
+
+On the CLI:
+
+```bash
+run-iocsh --executable softIocPVA -D /path/to/softIoc.dbd st.cmd
+```
+
+## `check_output` and `fail_on`
+
+`check_output()` is called automatically when the `IOC` context manager exits
+cleanly. It applies the following checks against the accumulated output:
+
+| Check | Exception |
+| --- | --- |
+| `Module X not available` | `IocshModuleNotFoundError` |
+| `Can't open ...` / `File ... does not exist` | `IocshFileNotFoundError` |
+| `libX: cannot open shared object file` | `IocshMissingSharedLibraryError` |
+| `^ERROR` (DB loading errors, macro errors, syntax errors) | `IocshPatternMatchError` |
+| Non-zero exit code | `IocshProcessError` |
+
+The `^ERROR` pattern is stored in `RE_BUILTIN_FAIL_ON` and catches errors that
+EPICS prints before `iocInit` but after which the IOC still exits 0 — a common
+source of false-pass failures in CI.
+
+### Adding patterns
+
+Pass `fail_on` to `IOC.__init__` to check for additional patterns on top of the
+built-in checks:
+
+```python
+with IOC("st.cmd", fail_on=["^WARNING:", r"FATAL\b"]) as ioc:
+    ioc.wait_for_output()
+```
+
+Or call `check_output()` explicitly inside the `with` block when needed:
+
+```python
+with IOC("st.cmd") as ioc:
+    ioc.wait_for_output()
+    ioc.check_output(fail_on=["^WARNING:"])
+```
+
+### CLI
+
+```bash
+run-iocsh --fail-on "^WARNING" st.cmd
+```
+
+`--fail-on` patterns are added on top of the built-in `^ERROR` check.
+
+## caplog integration
+
+IOC output is logged at `DEBUG` level, line by line, as it arrives. Use
+`caplog.at_level(logging.DEBUG, logger="run_iocsh")` to capture it in pytest.
+This is especially useful for asserting on startup output without needing to
+wait for the IOC to exit first:
+
+```python
+import logging
+
+def test_ioc_loads_correctly(caplog):
+    with caplog.at_level(logging.DEBUG, logger="run_iocsh"):
+        with IOC("st.cmd") as ioc:
+            ioc.wait_for_output()
+            assert "require_registerRecordDeviceDriver" in caplog.text
+```
+
+On failure, pytest displays the captured log, giving full IOC output context
+without any extra teardown code.
+
+## Exception reference
+
+For the full exception hierarchy see the
+[API reference](autoapi/run_iocsh/index.html#exceptions).

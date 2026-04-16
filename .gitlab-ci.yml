@@ -1,7 +1,11 @@
 ---
 include:
-  - 'https://gitlab.esss.lu.se/ics-infrastructure/gitlab-ci-yml/raw/master/PreCommit.gitlab-ci.yml'
-  - 'https://gitlab.esss.lu.se/ics-infrastructure/gitlab-ci-yml/raw/master/ArtifactoryPyPI.gitlab-ci.yml'
+  - project: "ics-infrastructure/gitlab-ci-yml"
+    file: "PreCommit.gitlab-ci.yml"
+  - project: "ics-infrastructure/gitlab-ci-yml"
+    file: "ArtifactoryPyPI.gitlab-ci.yml"
+  - project: "ics-infrastructure/gitlab-ci-yml"
+    file: "SonarScanner.gitlab-ci.yml"
 
 default:
   tags:
@@ -14,70 +18,50 @@ stages:
   - check
   - build
   - test
+  - analyse
   - release
   - deploy
 
-run-pre-commit:
-  script:
-    - pre-commit run ruff --all-files
-    - pre-commit run end-of-file-fixer --all-files
-    - pre-commit run trailing-whitespace --all-files
-
-run markdown lint:
-  stage: check
-  image: pipelinecomponents/markdownlint:latest
-  script:
-    - mdl --config .mdlrc .
-
 build-pypi-package:
-  image: python:3.6
+  image: python:3.12
   before_script:
     - pip install build
   script:
     - python -m build
 
-.test-conda:
+.test:
   stage: test
-  image: registry.esss.lu.se/ics-docker/miniconda
   before_script:
-    - source /etc/profile.d/conda.sh
-    - conda create -n test -y -c conda-e3-virtual python=$PYTHON_VERSION require
-    - conda activate test
     - pip install .[dev]
   script:
-    - run-iocsh -h
     - pytest -v tests
 
-test-conda-python36:
-  extends: .test-conda
+test-python312:
+  extends: .test
+  image: python:3.12
   script:
-    - run-iocsh -h
-    - coverage run -m pytest
-    - coverage report
-    - coverage xml
+    - pytest -v --cov=run_iocsh --cov-report=term-missing --cov-report=xml tests
   coverage: '/(?i)total.*? (100(?:\.0+)?\%|[1-9]?\d(?:\.\d+)?\%)$/'
   artifacts:
+    paths:
+      - coverage.xml
     reports:
       coverage_report:
         coverage_format: cobertura
         path: coverage.xml
-  variables:
-    PYTHON_VERSION: 3.6
 
-test-conda-python37:
-  extends: .test-conda
-  variables:
-    PYTHON_VERSION: 3.7
+test-python313:
+  extends: .test
+  image: python:3.13
 
-test-conda-python38:
-  extends: .test-conda
-  variables:
-    PYTHON_VERSION: 3.8
+test-python314:
+  extends: .test
+  image: python:3.14
 
-test-conda-python39:
-  extends: .test-conda
-  variables:
-    PYTHON_VERSION: 3.9
+run-sonar-scanner:
+  needs:
+    - job: test-python312
+      artifacts: true
 
 pages:
   stage: deploy

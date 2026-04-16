@@ -1,23 +1,56 @@
-from typing import Tuple
+import sys
+from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
-from run_iocsh.cli import parse_arguments
+from run_iocsh.cli import main, parse_arguments
+
+SCRIPTS = Path(__file__).parent / "scripts"
 
 
-# TODO In python 3.6 there is no way to write failing tests for argparse because
-# it exits on fail. A solution was introduced in 3.9 with the argument
-# exit_on_error. New tests should be added when our requirements change to
-# python 3.9.
 @pytest.mark.parametrize(
     "args",
     [
-        ("--delay", "1", "tests/cmds/test.cmd"),
-        ("--name", "iocsh", "tests/cmds/test.cmd"),
-        ("--timeout", "1", "tests/cmds/test.cmd"),
+        ("--delay", "1", "nonexistent.cmd"),
+        ("--timeout", "1", "nonexistent.cmd"),
+        ("--executable", "iocsh", "nonexistent.cmd"),
         ("-r", "iocstats"),
+        ("--unknown-flag", "value", "nonexistent.cmd"),
     ],
 )
-def test_run_exit_without_error_code(args: Tuple[str]) -> int:
-    # If parse_args fail the test will exit with return value != 0
+def test_parse_arguments_does_not_raise(args: tuple[str]) -> None:
     parse_arguments(args)
+
+
+class TestMain:
+    def test_success_exits_zero(self) -> None:
+        script = str(SCRIPTS / "iocsh-print-and-exit.py")
+        with patch.object(sys, "argv", ["run-iocsh", "--executable", script]):
+            main()
+
+    def test_missing_executable_exits_one(self) -> None:
+        with patch.object(sys, "argv", ["run-iocsh", "--executable", "does-not-exist"]):
+            with pytest.raises(SystemExit) as excinfo:
+                main()
+        assert excinfo.value.code == 1
+
+    def test_fail_on_pattern_exits_one(self) -> None:
+        script = str(SCRIPTS / "iocsh-custom-error.py")
+        with patch.object(
+            sys,
+            "argv",
+            ["run-iocsh", "--executable", script, "--fail-on", "CUSTOM_ERROR:"],
+        ):
+            with pytest.raises(SystemExit) as excinfo:
+                main()
+        assert excinfo.value.code == 1
+
+    def test_fail_on_no_match_exits_zero(self) -> None:
+        script = str(SCRIPTS / "iocsh-custom-error.py")
+        with patch.object(
+            sys,
+            "argv",
+            ["run-iocsh", "--executable", script, "--fail-on", "WILL_NOT_MATCH"],
+        ):
+            main()
