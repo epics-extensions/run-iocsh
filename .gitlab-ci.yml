@@ -47,7 +47,9 @@ coverage:
   extends: .test
   image: python:3.11
   script:
-    - pytest -v --cov=run_iocsh --cov-report=term-missing --cov-report=xml tests
+    - coverage run -m pytest -v tests
+    - coverage report -m
+    - coverage xml
   coverage: '/(?i)total.*? (100(?:\.0+)?\%|[1-9]?\d(?:\.\d+)?\%)$/'
   artifacts:
     paths:
