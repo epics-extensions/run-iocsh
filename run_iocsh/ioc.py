@@ -1,5 +1,6 @@
 """Class for running an IOC and capturing output."""
 
+import contextlib
 import errno
 import logging
 import os
@@ -191,12 +192,11 @@ class IOC:
 
         self.state = IOC.State.EXITED
 
-        try:
+        with contextlib.suppress(OSError):
             self.proc.stdin.write(b"exit\n")
             self.proc.stdin.flush()
+        with contextlib.suppress(OSError):
             self.proc.stdin.close()
-        except OSError:
-            pass  # process already exited
 
         try:
             self.proc.wait(timeout=self.timeout)
