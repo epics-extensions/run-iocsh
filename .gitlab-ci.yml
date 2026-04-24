@@ -23,7 +23,7 @@ stages:
   - deploy
 
 build-pypi-package:
-  image: python:3.12
+  image: python:3.11
   before_script:
     - pip install build
   script:
@@ -33,14 +33,23 @@ build-pypi-package:
   stage: test
   before_script:
     - pip install .[dev]
+
+test:
+  extends: .test
+  image: python:$PYTHON_VERSION
+  parallel:
+    matrix:
+      - PYTHON_VERSION: ["3.11", "3.12", "3.13", "3.14"]
   script:
     - pytest -v tests
 
-test-python312:
+coverage:
   extends: .test
-  image: python:3.12
+  image: python:3.11
   script:
-    - pytest -v --cov=run_iocsh --cov-report=term-missing --cov-report=xml tests
+    - coverage run -m pytest -v tests
+    - coverage report -m
+    - coverage xml
   coverage: '/(?i)total.*? (100(?:\.0+)?\%|[1-9]?\d(?:\.\d+)?\%)$/'
   artifacts:
     paths:
@@ -50,17 +59,9 @@ test-python312:
         coverage_format: cobertura
         path: coverage.xml
 
-test-python313:
-  extends: .test
-  image: python:3.13
-
-test-python314:
-  extends: .test
-  image: python:3.14
-
 run-sonar-scanner:
   needs:
-    - job: test-python312
+    - job: coverage
       artifacts: true
 
 pages:

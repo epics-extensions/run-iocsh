@@ -7,7 +7,7 @@ requires = [
 
 [project]
 name = "run-iocsh"
-version = "2.0.0"
+version = "2.0.1"
 description = "Wrapper to test IOCs"
 readme = { file = "README.rst", content-type = "text/x-rst" }
 keywords = [ "e3", "epics", "ess", "iocsh" ]
@@ -18,19 +18,20 @@ maintainers = [
 authors = [
   { name = "Anders Lindh Olsson", email = "anders.lindh.olsson@ess.eu" },
 ]
-requires-python = ">=3.12"
+requires-python = ">=3.11"
 classifiers = [
   "Development Status :: 3 - Alpha",
   "Intended Audience :: Developers",
   "License :: OSI Approved :: BSD License",
   "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
   "Programming Language :: Python :: 3.13",
   "Programming Language :: Python :: 3.14",
 ]
 optional-dependencies.dev = [
+  "coverage",
   "pytest",
-  "pytest-cov",
 ]
 urls.Homepage = "https://gitlab.esss.lu.se/e3/run-iocsh"
 scripts.run-iocsh = "run_iocsh.cli:main"
@@ -39,7 +40,7 @@ scripts.run-iocsh = "run_iocsh.cli:main"
 packages.find.where = [ "." ]
 
 [tool.ruff]
-target-version = "py312"
+target-version = "py311"
 lint.select = [ "ALL" ]
 lint.ignore = [
   "COM812",
@@ -70,6 +71,9 @@ lint.per-file-ignores."tests/scripts/**" = [
   "T201", # prints
 ]
 lint.pydocstyle.convention = "google"
+
+[tool.coverage]
+run.source = [ "run_iocsh" ]
 
 [tool.pymarkdown]
 plugins.MD004.style = "consistent"
