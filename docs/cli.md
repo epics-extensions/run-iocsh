@@ -24,7 +24,7 @@ options:
   --delay DELAY         time (in seconds) to wait after iocInit before sending
                         exit (default: 5.0)
   --timeout TIMEOUT     time (in seconds) to wait for the IOC to exit after
-                        sending exit (default: 0.0)
+                        sending exit (default: None)
   --executable EXECUTABLE
                         IOC executable to run (default: iocsh)
   --fail-on PATTERN     raise if regex PATTERN matches output; ^ERROR is

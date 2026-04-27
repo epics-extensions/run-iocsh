@@ -53,6 +53,13 @@ class TestIOC:
         ioc.exit()
         assert not ioc.is_running()
 
+    def test_default_timeout_allows_clean_exit(self) -> None:
+        script = str(SCRIPTS / "iocsh-slow-exit.py")
+        ioc = IOC(executable=script)
+        ioc.start()
+        ioc.wait_for_output()
+        ioc.exit()
+
     def test_start_after_exit_raises(self) -> None:
         script = str(SCRIPTS / "iocsh-print-and-exit.py")
         with IOC(executable=script, timeout=5.0) as ioc:
