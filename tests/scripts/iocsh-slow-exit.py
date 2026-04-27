@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Fake iocsh: prints readiness line, reads exit command, then exits after a brief delay."""
+"""Fake iocsh: prints readiness line, reads exit command, then exits after a delay."""
 
 import sys
 import time
