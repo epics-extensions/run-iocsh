@@ -7,6 +7,7 @@ from run_iocsh import (
     IocshMissingSharedLibraryError,
     IocshModuleNotFoundError,
     IocshPatternMatchError,
+    IocshProcessError,
     IocshTimeoutError,
     run_iocsh,
 )
@@ -20,6 +21,11 @@ class TestExceptions:
         with pytest.raises(FileNotFoundError) as excinfo:
             run_iocsh(executable="foo")
         assert "No such file or directory: 'foo'" in str(excinfo.value)
+
+    def test_nonzero_exit_raises(self) -> None:
+        script = str(SCRIPTS / "iocsh-nonzero-exit.py")
+        with pytest.raises(IocshProcessError, match="Return code: 1"):
+            run_iocsh(delay=0, executable=script)
 
     def test_run_iocsh_cmd_file_not_found(self) -> None:
         filename = "does-not-exist.cmd"

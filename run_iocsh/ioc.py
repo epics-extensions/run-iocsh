@@ -36,12 +36,11 @@ RE_BUILTIN_FAIL_ON = r"^ERROR"
 DEFAULT_FAIL_ON: tuple[str, ...] = (RE_BUILTIN_FAIL_ON,)
 
 DEFAULT_EXECUTABLE = "iocsh"
-DEFAULT_EXIT_TIMEOUT = 0.0
+DEFAULT_EXIT_TIMEOUT: float | None = None
 DEFAULT_WAIT_FOR_TIMEOUT = 5.0
 DEFAULT_POLL_INTERVAL = 0.1
 DEFAULT_DELAY = 5.0
 DEFAULT_THREAD_TIMEOUT = 5.0
-DEFAULT_THREAD_JOIN_TIMEOUT = 1.0
 
 TAIL_CHARS = 500
 
@@ -64,7 +63,7 @@ class IOC:
         self,
         *args: str,
         executable: str = DEFAULT_EXECUTABLE,
-        timeout: float = DEFAULT_EXIT_TIMEOUT,
+        timeout: float | None = DEFAULT_EXIT_TIMEOUT,
         fail_on: Sequence[str] = DEFAULT_FAIL_ON,
     ) -> None:
         self.proc = None
@@ -315,7 +314,7 @@ class IOC:
 def run_iocsh(
     *args: str,
     delay: float = DEFAULT_DELAY,
-    timeout: float = DEFAULT_EXIT_TIMEOUT,
+    timeout: float | None = DEFAULT_EXIT_TIMEOUT,
     executable: str = DEFAULT_EXECUTABLE,
     fail_on: Sequence[str] = DEFAULT_FAIL_ON,
 ) -> IOC:
