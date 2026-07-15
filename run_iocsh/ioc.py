@@ -264,6 +264,10 @@ class IOC:
                 self._join_reader_threads()
                 if compiled.search(self.output):
                     return
+                # The IOC died before the pattern appeared. If the output names
+                # a cause, raise that; otherwise fall through to the generic
+                # startup error.
+                self._raise_for_reported_error()
                 raise IocshStartupError(
                     f"IOC exited (rc={self.proc.returncode}) before pattern "
                     f"{pattern!r} appeared.\n"
@@ -306,13 +310,25 @@ class IOC:
             raise IocshStateError("check_output() called before exit()")
 
         log.debug("return code: %s", self.proc.returncode)
-        combined = self.output
         for pattern in fail_on:
-            m = re.search(pattern, combined, re.MULTILINE)
+            m = re.search(pattern, self.output, re.MULTILINE)
             if m:
                 raise IocshPatternMatchError(
                     f"Pattern {pattern!r} matched output: {m.group(0)!r}"
                 )
+        self._raise_for_reported_error()
+        if self.proc.returncode != 0:
+            raise IocshProcessError(
+                f"Return code: {self.proc.returncode}\n{self.stderr}"
+            )
+
+    def _raise_for_reported_error(self) -> None:
+        """Raise a typed error if the output names a cause we recognise.
+
+        Returns quietly when nothing matches, so callers stay responsible for
+        deciding what an unexplained failure means.
+        """
+        combined = self.output
         m = RE_MODULE_NOT_AVAILABLE.search(combined)
         if m:
             raise IocshModuleNotFoundError(f"Error loading module: {m.group(1)}")
@@ -327,10 +343,6 @@ class IOC:
         if m:
             raise IocshMissingSharedLibraryError(
                 f"Missing shared library: '{m.group(1)}'"
-            )
-        if self.proc.returncode != 0:
-            raise IocshProcessError(
-                f"Return code: {self.proc.returncode}\n{self.stderr}"
             )
 
 
