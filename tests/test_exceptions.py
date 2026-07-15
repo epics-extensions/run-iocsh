@@ -58,7 +58,7 @@ class TestExceptions:
     @pytest.mark.parametrize("name", ["iocsh-timeout.py", "iocsh-stdout-closed.py"])
     def test_run_iocsh_timeout_expired(self, name: str) -> None:
         with pytest.raises(IocshTimeoutError) as excinfo:
-            run_iocsh(delay=0.1, timeout=0.5, executable=str(SCRIPTS / name))
+            run_iocsh(delay=0.1, exit_timeout=0.5, executable=str(SCRIPTS / name))
         assert str(excinfo.value) == "Failed to send exit to the IOC"
 
 

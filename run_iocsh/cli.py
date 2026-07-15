@@ -32,7 +32,7 @@ def parse_arguments(  # noqa: D103
     )
 
     parser.add_argument(
-        "--timeout",
+        "--exit-timeout",
         default=DEFAULT_EXIT_TIMEOUT,
         type=float,
         help="time (in seconds) to wait for the IOC to exit after sending exit",
@@ -77,7 +77,7 @@ def main() -> None:  # noqa: D103
         run_iocsh(
             *extra,
             delay=namespace.delay,
-            timeout=namespace.timeout,
+            exit_timeout=namespace.exit_timeout,
             executable=namespace.executable,
             fail_on=base + tuple(namespace.fail_on),
         )

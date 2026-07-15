@@ -54,7 +54,7 @@ class TestRunIocsh:
 class TestIOC:
     def test_start_exit_lifecycle(self) -> None:
         script = str(SCRIPTS / "iocsh-wait-for-exit.py")
-        ioc = IOC(executable=script, timeout=5.0)
+        ioc = IOC(executable=script, exit_timeout=5.0)
         assert not ioc.is_running()
         assert ioc.pid is None
 
@@ -65,11 +65,16 @@ class TestIOC:
         ioc.exit()
         assert not ioc.is_running()
 
+    def test_exit_timeout_is_named_for_its_phase(self) -> None:
+        script = str(SCRIPTS / "iocsh-print-and-exit.py")
+        ioc = IOC(executable=script, exit_timeout=1.0)
+        assert ioc.exit_timeout == 1.0
+
     def test_default_exit_timeout_is_finite(self) -> None:
         # None blocks forever, which turns an IOC that ignores exit into a hung
         # CI job rather than a failed one.
         script = str(SCRIPTS / "iocsh-print-and-exit.py")
-        assert IOC(executable=script).timeout is not None
+        assert IOC(executable=script).exit_timeout is not None
 
     def test_default_timeout_allows_clean_exit(self) -> None:
         script = str(SCRIPTS / "iocsh-slow-exit.py")
@@ -80,7 +85,7 @@ class TestIOC:
 
     def test_start_after_exit_raises(self) -> None:
         script = str(SCRIPTS / "iocsh-print-and-exit.py")
-        with IOC(executable=script, timeout=5.0) as ioc:
+        with IOC(executable=script, exit_timeout=5.0) as ioc:
             pass
         with pytest.raises(IocshStateError, match="already exited"):
             ioc.start()
@@ -89,7 +94,7 @@ class TestIOC:
         script = str(SCRIPTS / "iocsh-print-and-exit.py")
         with (
             pytest.raises(IocshAlreadyRunningError) as excinfo,
-            IOC(executable=script, timeout=5.0) as ioc,
+            IOC(executable=script, exit_timeout=5.0) as ioc,
         ):
             ioc.start()
 
@@ -100,7 +105,7 @@ class TestIOC:
     ) -> None:
         script = str(SCRIPTS / "iocsh-print-and-exit.py")
         with caplog.at_level(logging.WARNING):
-            with IOC(executable=script, timeout=5.0) as ioc:
+            with IOC(executable=script, exit_timeout=5.0) as ioc:
                 pass
             ioc.exit()
         assert "IOC is not running" in caplog.text
@@ -233,7 +238,7 @@ class TestWaitForOutput:
     def test_raises_timeout_error_while_running(self) -> None:
         script = str(SCRIPTS / "iocsh-timeout.py")
         with pytest.raises(IocshTimeoutError):
-            with IOC(executable=script, timeout=0.3) as ioc:
+            with IOC(executable=script, exit_timeout=0.3) as ioc:
                 ioc.wait_for_output(pattern="WILL_NOT_APPEAR", timeout=0.1)
 
     def test_none_timeout_returns_when_pattern_found(self) -> None:
@@ -251,7 +256,7 @@ class TestWaitForOutput:
 
     def test_output_accessible_after_exit(self) -> None:
         script = str(SCRIPTS / "iocsh-print-and-exit.py")
-        with IOC(executable=script, timeout=5.0) as ioc:
+        with IOC(executable=script, exit_timeout=5.0) as ioc:
             ioc.wait_for_output()
         assert "iocRun: All initialization complete" in ioc.output
         assert 'epicsEnvSet IOCSH_TOP "/tmp"' in ioc.stdout
@@ -259,7 +264,7 @@ class TestWaitForOutput:
     def test_stderr_accessible_after_exit(self) -> None:
         script = str(SCRIPTS / "iocsh-module-not-found.py")
         with pytest.raises(IocshModuleNotFoundError):
-            with IOC(executable=script, timeout=5.0) as ioc:
+            with IOC(executable=script, exit_timeout=5.0) as ioc:
                 ioc.wait_for_output()
         assert "Error loading module: mock" in ioc.stderr
 

@@ -143,7 +143,7 @@ class IOC:
         self,
         *args: str,
         executable: str = DEFAULT_EXECUTABLE,
-        timeout: float | None = DEFAULT_EXIT_TIMEOUT,
+        exit_timeout: float | None = DEFAULT_EXIT_TIMEOUT,
         fail_on: Sequence[str] = DEFAULT_FAIL_ON,
     ) -> None:
         self.proc = None
@@ -151,7 +151,7 @@ class IOC:
         self.executable = executable
         if not shutil.which(self.executable):
             raise FileNotFoundError(f"No such file or directory: '{self.executable}'")
-        self.timeout = timeout
+        self.exit_timeout = exit_timeout
         self._fail_on = fail_on
         self.state = IOC.State.INITIALIZED
         self._lines: list[tuple[str, str]] = []
@@ -299,7 +299,7 @@ class IOC:
             self.proc.stdin.close()
 
         try:
-            self.proc.wait(timeout=self.timeout)
+            self.proc.wait(timeout=self.exit_timeout)
         except subprocess.TimeoutExpired:
             _terminate_group(self.proc, self._pgid)
             raise IocshTimeoutError("Failed to send exit to the IOC") from None
@@ -429,7 +429,7 @@ class IOC:
 def run_iocsh(
     *args: str,
     delay: float = DEFAULT_DELAY,
-    timeout: float | None = DEFAULT_EXIT_TIMEOUT,
+    exit_timeout: float | None = DEFAULT_EXIT_TIMEOUT,
     executable: str = DEFAULT_EXECUTABLE,
     fail_on: Sequence[str] = DEFAULT_FAIL_ON,
 ) -> IOC:
@@ -442,7 +442,7 @@ def run_iocsh(
     with IOC(
         *args,
         executable=executable,
-        timeout=timeout,
+        exit_timeout=exit_timeout,
         fail_on=fail_on,
     ) as ioc:
         ioc.wait_for_output()

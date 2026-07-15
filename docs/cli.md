@@ -13,7 +13,7 @@ run-iocsh st.cmd
 
 ```text
 $ run-iocsh -h
-usage: run-iocsh [-h] [--delay DELAY] [--timeout TIMEOUT]
+usage: run-iocsh [-h] [--delay DELAY] [--exit-timeout EXIT_TIMEOUT]
                  [--executable EXECUTABLE] [--fail-on PATTERN]
                  [--no-default-fail-on]
 
@@ -23,8 +23,9 @@ options:
   -h, --help            show this help message and exit
   --delay DELAY         time (in seconds) to wait after iocInit before sending
                         exit (default: 5.0)
-  --timeout TIMEOUT     time (in seconds) to wait for the IOC to exit after
-                        sending exit (default: None)
+  --exit-timeout EXIT_TIMEOUT
+                        time (in seconds) to wait for the IOC to exit after
+                        sending exit (default: 10.0)
   --executable EXECUTABLE
                         IOC executable to run (default: iocsh)
   --fail-on PATTERN     raise if regex PATTERN matches output; ^ERROR is
@@ -44,10 +45,10 @@ Runs `iocsh`, waits for `iocInit` to complete, then exits immediately:
 run-iocsh st.cmd
 ```
 
-### Custom delay and timeout
+### Custom delay and exit timeout
 
 ```bash
-run-iocsh --delay 10 --timeout 3 st.cmd
+run-iocsh --delay 10 --exit-timeout 3 st.cmd
 ```
 
 `--delay` is the settle time **after** `iocInit` completes, not a total wait.
