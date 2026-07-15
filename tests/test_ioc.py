@@ -230,6 +230,11 @@ class TestWaitForOutput:
             with IOC(executable=script, timeout=0.3) as ioc:
                 ioc.wait_for_output(pattern="WILL_NOT_APPEAR", timeout=0.1)
 
+    def test_none_timeout_returns_when_pattern_found(self) -> None:
+        script = str(SCRIPTS / "iocsh-print-and-exit.py")
+        with IOC(executable=script) as ioc:
+            ioc.wait_for_output(timeout=None)
+
     def test_output_accessible_before_exit(self) -> None:
         # Readiness arrives on stderr: EPICS sends errlog there.
         script = str(SCRIPTS / "iocsh-print-and-exit.py")

@@ -26,6 +26,7 @@ from run_iocsh.exceptions import (
     IocshStateError,
     IocshTimeoutError,
 )
+from run_iocsh.utils import DEFAULT_POLL_INTERVAL
 
 log = logging.getLogger(__name__)
 
@@ -40,8 +41,7 @@ DEFAULT_FAIL_ON: tuple[str, ...] = (RE_BUILTIN_FAIL_ON,)
 
 DEFAULT_EXECUTABLE = "iocsh"
 DEFAULT_EXIT_TIMEOUT: float | None = None
-DEFAULT_WAIT_FOR_TIMEOUT = 5.0
-DEFAULT_POLL_INTERVAL = 0.1
+DEFAULT_INIT_TIMEOUT: float | None = 5.0
 DEFAULT_DELAY = 5.0
 DEFAULT_THREAD_TIMEOUT = 5.0
 # Seconds an unresponsive IOC gets to shut down on SIGINT before it is killed.
@@ -309,7 +309,7 @@ class IOC:
     def wait_for_output(
         self,
         pattern: str = "iocRun: All initialization complete",
-        timeout: float = DEFAULT_WAIT_FOR_TIMEOUT,
+        timeout: float | None = DEFAULT_INIT_TIMEOUT,
         poll_interval: float = DEFAULT_POLL_INTERVAL,
     ) -> None:
         """Block until ``pattern`` appears in stdout or stderr.
@@ -318,7 +318,9 @@ class IOC:
 
         Args:
             pattern: Regex pattern to search for in ``output``.
-            timeout: Maximum seconds to wait before raising.
+            timeout: Maximum seconds to wait. ``None`` waits forever, as it does
+                throughout the standard library. ``0`` checks the buffered
+                output once and never blocks.
             poll_interval: Seconds to sleep between polls.
 
         Raises:
@@ -332,7 +334,7 @@ class IOC:
         # MULTILINE so ^ anchors at the start of any line, matching how fail_on
         # is applied -- readiness and errors arrive mid-stream, never at offset 0.
         compiled = re.compile(pattern, re.MULTILINE)
-        deadline = time.monotonic() + timeout
+        deadline = None if timeout is None else time.monotonic() + timeout
 
         while True:
             if compiled.search(self.output):
@@ -352,7 +354,7 @@ class IOC:
                     f"output (last {TAIL_CHARS} chars):\n{self.output[-TAIL_CHARS:]}"
                 )
 
-            if time.monotonic() >= deadline:
+            if deadline is not None and time.monotonic() >= deadline:
                 raise IocshTimeoutError(
                     f"Timed out after {timeout}s waiting for {pattern!r}"
                 )

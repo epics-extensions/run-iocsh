@@ -25,6 +25,28 @@ class TestWaitFor:
         wait_for(flaky, timeout=1.0, poll_interval=0.01)
         assert call_count >= 3
 
+    def test_none_timeout_polls_until_predicate_is_true(self) -> None:
+        # None means wait forever, as it does throughout the stdlib.
+        calls = []
+
+        def ready() -> bool:
+            calls.append(1)
+            return len(calls) >= 3
+
+        wait_for(ready, timeout=None, poll_interval=0.01)
+        assert len(calls) == 3
+
+    def test_zero_timeout_evaluates_the_predicate_once(self) -> None:
+        calls = []
+
+        def never() -> bool:
+            calls.append(1)
+            return False
+
+        with pytest.raises(TimeoutError):
+            wait_for(never, timeout=0)
+        assert len(calls) == 1
+
     def test_timeout_message_contains_duration(self) -> None:
         with pytest.raises(TimeoutError, match=r"0\.05s"):
             wait_for(lambda: False, timeout=0.05, poll_interval=0.01)
