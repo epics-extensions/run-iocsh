@@ -13,8 +13,12 @@ class IocshAlreadyRunningError(IocshStateError):
     """Exception raised when IOC is started a second time."""
 
 
-class IocshTimeoutError(RunIocshError):
-    """Exception raised when a timeout occurred trying to send exit to the IOC."""
+class IocshTimeoutError(RunIocshError, TimeoutError):
+    """Exception raised when an operation did not complete within its timeout.
+
+    Also a builtin ``TimeoutError``, so ``except TimeoutError`` keeps working
+    while ``except RunIocshError`` catches every error this library raises.
+    """
 
 
 class IocshStartupError(RunIocshError):

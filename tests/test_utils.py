@@ -1,6 +1,6 @@
 import pytest
 
-from run_iocsh import wait_for
+from run_iocsh import IocshTimeoutError, RunIocshError, wait_for
 
 
 class TestWaitFor:
@@ -10,6 +10,15 @@ class TestWaitFor:
     def test_raises_on_timeout(self) -> None:
         with pytest.raises(TimeoutError):
             wait_for(lambda: False, timeout=0.05, poll_interval=0.01)
+
+    def test_raises_the_library_timeout_type(self) -> None:
+        with pytest.raises(IocshTimeoutError):
+            wait_for(lambda: False, timeout=0.05, poll_interval=0.01)
+
+    def test_library_timeout_is_still_a_builtin_timeout_error(self) -> None:
+        # Subclassing the builtin keeps `except TimeoutError` callers working.
+        assert issubclass(IocshTimeoutError, TimeoutError)
+        assert issubclass(IocshTimeoutError, RunIocshError)
 
     def test_swallows_predicate_exceptions(self) -> None:
         call_count = 0

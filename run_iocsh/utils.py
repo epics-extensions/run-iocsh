@@ -4,6 +4,8 @@ import logging
 import time
 from collections.abc import Callable
 
+from run_iocsh.exceptions import IocshTimeoutError
+
 log = logging.getLogger(__name__)
 
 DEFAULT_POLL_TIMEOUT = 5.0
@@ -28,7 +30,8 @@ def wait_for(
         poll_interval: Seconds to sleep between polls.
 
     Raises:
-        TimeoutError: If the predicate never returns True within ``timeout``.
+        IocshTimeoutError: If the predicate never returns True within
+            ``timeout``. Also catchable as the builtin ``TimeoutError``.
     """
     deadline = None if timeout is None else time.monotonic() + timeout
     while True:
@@ -38,5 +41,5 @@ def wait_for(
         except Exception:  # noqa: BLE001
             log.debug("wait_for: predicate raised, treating as False", exc_info=True)
         if deadline is not None and time.monotonic() >= deadline:
-            raise TimeoutError(f"Timed out after {timeout}s waiting for predicate")
+            raise IocshTimeoutError(f"Timed out after {timeout}s waiting for predicate")
         time.sleep(poll_interval)
