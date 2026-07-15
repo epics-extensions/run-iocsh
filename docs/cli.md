@@ -14,6 +14,7 @@ run-iocsh st.cmd
 ```text
 $ run-iocsh -h
 usage: run-iocsh [-h] [--delay DELAY] [--exit-timeout EXIT_TIMEOUT]
+                 [--init-timeout INIT_TIMEOUT] [--pattern PATTERN]
                  [--executable EXECUTABLE] [--fail-on PATTERN]
                  [--no-default-fail-on]
 
@@ -26,6 +27,11 @@ options:
   --exit-timeout EXIT_TIMEOUT
                         time (in seconds) to wait for the IOC to exit after
                         sending exit (default: 10.0)
+  --init-timeout INIT_TIMEOUT
+                        time (in seconds) to wait for the IOC to become ready
+                        (default: 5.0)
+  --pattern PATTERN     regex to wait for before considering the IOC ready
+                        (default: iocRun: All initialization complete)
   --executable EXECUTABLE
                         IOC executable to run (default: iocsh)
   --fail-on PATTERN     raise if regex PATTERN matches output; ^ERROR is
@@ -52,7 +58,19 @@ run-iocsh --delay 10 --exit-timeout 3 st.cmd
 ```
 
 `--delay` is the settle time **after** `iocInit` completes, not a total wait.
-The tool always waits for `iocRun: All initialization complete` before sleeping.
+
+### Waiting for something other than iocInit
+
+`--init-timeout` bounds the wait for readiness, and `--pattern` chooses what
+counts as ready. Both are separate from `--exit-timeout`, which only bounds how
+long the IOC gets to shut down after being told to exit:
+
+```bash
+run-iocsh --pattern "autosave: All ok" --init-timeout 30 st.cmd
+```
+
+Without `--pattern`, the tool waits for `iocRun: All initialization complete`
+before sleeping.
 
 ### Non-default executables
 

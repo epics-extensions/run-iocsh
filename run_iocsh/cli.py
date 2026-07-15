@@ -10,6 +10,8 @@ from run_iocsh.ioc import (
     DEFAULT_EXECUTABLE,
     DEFAULT_EXIT_TIMEOUT,
     DEFAULT_FAIL_ON,
+    DEFAULT_INIT_PATTERN,
+    DEFAULT_INIT_TIMEOUT,
     run_iocsh,
 )
 
@@ -36,6 +38,19 @@ def parse_arguments(  # noqa: D103
         default=DEFAULT_EXIT_TIMEOUT,
         type=float,
         help="time (in seconds) to wait for the IOC to exit after sending exit",
+    )
+
+    parser.add_argument(
+        "--init-timeout",
+        default=DEFAULT_INIT_TIMEOUT,
+        type=float,
+        help="time (in seconds) to wait for the IOC to become ready",
+    )
+
+    parser.add_argument(
+        "--pattern",
+        default=DEFAULT_INIT_PATTERN,
+        help="regex to wait for before considering the IOC ready",
     )
 
     parser.add_argument(
@@ -78,6 +93,8 @@ def main() -> None:  # noqa: D103
             *extra,
             delay=namespace.delay,
             exit_timeout=namespace.exit_timeout,
+            init_timeout=namespace.init_timeout,
+            pattern=namespace.pattern,
             executable=namespace.executable,
             fail_on=base + tuple(namespace.fail_on),
         )

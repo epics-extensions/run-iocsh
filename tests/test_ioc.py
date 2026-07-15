@@ -45,6 +45,24 @@ class TestRunIocsh:
         result = run_iocsh(executable=script, delay=0)
         assert "iocRun: All initialization complete" in result.output
 
+    def test_init_timeout_and_pattern_are_passed_through(self) -> None:
+        # The readiness wait was hardcoded: exit_timeout controlled the exit,
+        # never the wait, which was always DEFAULT_INIT_TIMEOUT.
+        script = str(SCRIPTS / "iocsh-wait-for-exit.py")
+        with pytest.raises(IocshTimeoutError, match="WILL_NOT_APPEAR"):
+            run_iocsh(
+                executable=script,
+                pattern="WILL_NOT_APPEAR",
+                init_timeout=0.1,
+                exit_timeout=5.0,
+                delay=0,
+            )
+
+    def test_pattern_can_wait_for_something_other_than_iocinit(self) -> None:
+        script = str(SCRIPTS / "iocsh-print-and-exit.py")
+        result = run_iocsh(executable=script, pattern="Starting iocInit", delay=0)
+        assert "Starting iocInit" in result.output
+
     def test_returned_ioc_is_exited(self) -> None:
         script = str(SCRIPTS / "iocsh-print-and-exit.py")
         result = run_iocsh(executable=script, delay=0)

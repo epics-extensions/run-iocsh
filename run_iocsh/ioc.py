@@ -40,6 +40,7 @@ RE_BUILTIN_FAIL_ON = r"^ERROR"
 DEFAULT_FAIL_ON: tuple[str, ...] = (RE_BUILTIN_FAIL_ON,)
 
 DEFAULT_EXECUTABLE = "iocsh"
+DEFAULT_INIT_PATTERN = "iocRun: All initialization complete"
 DEFAULT_EXIT_TIMEOUT: float | None = 10.0
 DEFAULT_INIT_TIMEOUT: float | None = 5.0
 DEFAULT_DELAY = 5.0
@@ -308,7 +309,7 @@ class IOC:
 
     def wait_for_output(
         self,
-        pattern: str = "iocRun: All initialization complete",
+        pattern: str = DEFAULT_INIT_PATTERN,
         timeout: float | None = DEFAULT_INIT_TIMEOUT,
         poll_interval: float = DEFAULT_POLL_INTERVAL,
     ) -> None:
@@ -426,18 +427,32 @@ class IOC:
             )
 
 
-def run_iocsh(
+def run_iocsh(  # noqa: PLR0913 - a convenience wrapper over the whole sequence;
+    # every argument names a distinct phase and all are keyword-only.
     *args: str,
     delay: float = DEFAULT_DELAY,
     exit_timeout: float | None = DEFAULT_EXIT_TIMEOUT,
+    init_timeout: float | None = DEFAULT_INIT_TIMEOUT,
+    pattern: str = DEFAULT_INIT_PATTERN,
     executable: str = DEFAULT_EXECUTABLE,
     fail_on: Sequence[str] = DEFAULT_FAIL_ON,
 ) -> IOC:
-    """Start IOC, wait for iocInit, sleep delay seconds, exit, check output.
+    """Start IOC, wait for ``pattern``, sleep delay seconds, exit, check output.
+
+    Args:
+        args: Arguments passed to the IOC executable.
+        delay: Seconds to keep the IOC running once it is ready.
+        exit_timeout: Seconds to wait for the IOC to exit after being told to
+            exit. ``None`` waits forever.
+        init_timeout: Seconds to wait for ``pattern`` to appear. ``None`` waits
+            forever.
+        pattern: Regex to wait for before considering the IOC ready.
+        executable: IOC executable to run.
+        fail_on: Regex patterns that make ``check_output`` raise.
 
     Returns:
-        The exited ``IOC`` instance. Access ``.stdout`` and ``.stderr`` for
-        output inspection after the call returns.
+        The exited ``IOC`` instance. Access ``.output``, ``.stdout`` and
+        ``.stderr`` for inspection after the call returns.
     """
     with IOC(
         *args,
@@ -445,6 +460,6 @@ def run_iocsh(
         exit_timeout=exit_timeout,
         fail_on=fail_on,
     ) as ioc:
-        ioc.wait_for_output()
+        ioc.wait_for_output(pattern=pattern, timeout=init_timeout)
         time.sleep(delay)
     return ioc
