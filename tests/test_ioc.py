@@ -65,6 +65,12 @@ class TestIOC:
         ioc.exit()
         assert not ioc.is_running()
 
+    def test_default_exit_timeout_is_finite(self) -> None:
+        # None blocks forever, which turns an IOC that ignores exit into a hung
+        # CI job rather than a failed one.
+        script = str(SCRIPTS / "iocsh-print-and-exit.py")
+        assert IOC(executable=script).timeout is not None
+
     def test_default_timeout_allows_clean_exit(self) -> None:
         script = str(SCRIPTS / "iocsh-slow-exit.py")
         ioc = IOC(executable=script)
