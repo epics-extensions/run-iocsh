@@ -28,6 +28,7 @@ from run_iocsh.exceptions import (
 log = logging.getLogger(__name__)
 
 
+RE_ANSI_SGR = re.compile(r"\x1b\[[0-9;]*m")
 RE_MODULE_NOT_AVAILABLE = re.compile(r"Error loading module:? (\S+?)\.?$", re.MULTILINE)
 RE_CANT_OPEN = re.compile(r"[Cc]an't\s*open\s*(.*?):")
 RE_DOES_NOT_EXIST = re.compile(r"File (.*) does not exist")
@@ -126,7 +127,11 @@ class IOC:
         # list.append is atomic under CPython's GIL, so concurrent reads from
         # the main thread (via self.stdout / self.stderr) are safe in practice.
         for raw in iter(stream.readline, b""):
-            line = raw.decode("utf-8", errors="replace").rstrip("\n")
+            decoded = raw.decode("utf-8", errors="replace").rstrip("\n")
+            # EPICS colourises errlog unconditionally, even when the stream is a
+            # pipe, so escapes would otherwise defeat every pattern we and our
+            # callers match -- notably the anchor in DEFAULT_FAIL_ON.
+            line = RE_ANSI_SGR.sub("", decoded)
             lines.append(line)
             log.debug("[%s] %s", label, line)
 

@@ -66,6 +66,13 @@ class TestCheckOutputFailOn:
         with pytest.raises(IocshPatternMatchError, match="ERROR"):
             run_iocsh(delay=0.1, executable=script)
 
+    def test_ansi_wrapped_error_pattern_detected(self) -> None:
+        # EPICS wraps ERROR in ANSI escapes, so ^ERROR only matches once the
+        # escapes are stripped from captured output.
+        script = str(SCRIPTS / "iocsh-ansi-error.py")
+        with pytest.raises(IocshPatternMatchError, match="ERROR"):
+            run_iocsh(delay=0, executable=script)
+
     def test_user_fail_on_pattern_raises(self) -> None:
         script = str(SCRIPTS / "iocsh-custom-error.py")
         with pytest.raises(IocshPatternMatchError, match="CUSTOM_ERROR:"):
