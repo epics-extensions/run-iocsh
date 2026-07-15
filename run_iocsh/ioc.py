@@ -17,6 +17,7 @@ from typing import BinaryIO, Self
 
 from run_iocsh.exceptions import (
     IocshAlreadyRunningError,
+    IocshExitedError,
     IocshFileNotFoundError,
     IocshMissingSharedLibraryError,
     IocshModuleNotFoundError,
@@ -43,7 +44,7 @@ DEFAULT_EXECUTABLE = "iocsh"
 DEFAULT_INIT_PATTERN = "iocRun: All initialization complete"
 DEFAULT_EXIT_TIMEOUT: float | None = 10.0
 DEFAULT_INIT_TIMEOUT: float | None = 5.0
-DEFAULT_DELAY = 5.0
+DEFAULT_SETTLE = 0.0
 DEFAULT_THREAD_TIMEOUT = 5.0
 # Seconds an unresponsive IOC gets to shut down on SIGINT before it is killed.
 TERMINATE_GRACE = 0.5
@@ -430,7 +431,7 @@ class IOC:
 def run_iocsh(  # noqa: PLR0913 - a convenience wrapper over the whole sequence;
     # every argument names a distinct phase and all are keyword-only.
     *args: str,
-    delay: float = DEFAULT_DELAY,
+    settle: float = DEFAULT_SETTLE,
     exit_timeout: float | None = DEFAULT_EXIT_TIMEOUT,
     init_timeout: float | None = DEFAULT_INIT_TIMEOUT,
     pattern: str = DEFAULT_INIT_PATTERN,
@@ -438,11 +439,14 @@ def run_iocsh(  # noqa: PLR0913 - a convenience wrapper over the whole sequence;
     executable: str = DEFAULT_EXECUTABLE,
     fail_on: Sequence[str] = DEFAULT_FAIL_ON,
 ) -> IOC:
-    """Start IOC, wait for ``pattern``, sleep delay seconds, exit, check output.
+    """Start IOC, wait for ``pattern``, settle, exit, then check the output.
 
     Args:
         args: Arguments passed to the IOC executable.
-        delay: Seconds to keep the IOC running once it is ready.
+        settle: Seconds to keep the IOC running once it is ready, before
+            telling it to exit. Defaults to 0. Set it to catch an IOC that starts
+            cleanly but then dies, or to give background work that leaves no trace
+            in the output time to finish.
         exit_timeout: Seconds to wait for the IOC to exit after being told to
             exit. ``None`` waits forever.
         init_timeout: Seconds to wait for ``pattern`` to appear. ``None`` waits
@@ -468,5 +472,14 @@ def run_iocsh(  # noqa: PLR0913 - a convenience wrapper over the whole sequence;
     ) as ioc:
         if wait_for_init:
             ioc.wait_for_output(pattern=pattern, timeout=init_timeout)
-        time.sleep(delay)
+        time.sleep(settle)
+        survived = ioc.is_running()
+    # The context manager has already run check_output(), so a logged error or a
+    # non-zero exit has been reported. Only a clean early exit reaches here, and
+    # under a settle window that still counts as a failure: the IOC was asked to
+    # stay up and did not.
+    if settle and not survived:
+        raise IocshExitedError(
+            f"IOC exited during the {settle}s settle window (rc={ioc.proc.returncode})"
+        )
     return ioc

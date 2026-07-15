@@ -2,6 +2,7 @@
 
 from run_iocsh.exceptions import (
     IocshAlreadyRunningError,
+    IocshExitedError,
     IocshFileNotFoundError,
     IocshMissingSharedLibraryError,
     IocshModuleNotFoundError,
@@ -24,6 +25,7 @@ __all__ = [
     "DEFAULT_FAIL_ON",
     "IOC",
     "IocshAlreadyRunningError",
+    "IocshExitedError",
     "IocshFileNotFoundError",
     "IocshMissingSharedLibraryError",
     "IocshModuleNotFoundError",

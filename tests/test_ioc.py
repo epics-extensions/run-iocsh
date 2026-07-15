@@ -1,6 +1,8 @@
 import gc
+import inspect
 import logging
 import os
+import time
 import weakref
 from pathlib import Path
 
@@ -9,6 +11,7 @@ import pytest
 from run_iocsh import (
     IOC,
     IocshAlreadyRunningError,
+    IocshExitedError,
     IocshModuleNotFoundError,
     IocshStartupError,
     IocshStateError,
@@ -32,17 +35,40 @@ class TestRunIocsh:
     def test_output_logged_at_debug(self, caplog: pytest.LogCaptureFixture) -> None:
         script = str(SCRIPTS / "iocsh-print-and-exit.py")
         with caplog.at_level(logging.DEBUG, logger="run_iocsh"):
-            run_iocsh(executable=script, delay=0)
+            run_iocsh(executable=script, settle=0)
         assert "iocRun: All initialization complete" in caplog.text
+
+    def test_settle_defaults_to_off(self) -> None:
+        # Nothing ever wanted the 5 s default: every caller passed settle=0 to
+        # switch it off, paying 5 s per call for the privilege.
+        assert inspect.signature(run_iocsh).parameters["settle"].default == 0
+
+    def test_settle_keeps_the_ioc_running_when_asked(self) -> None:
+        script = str(SCRIPTS / "iocsh-wait-for-exit.py")
+        started = time.monotonic()
+        run_iocsh(executable=script, settle=0.5)
+        assert time.monotonic() - started >= 0.5
+
+    def test_settle_fails_if_the_ioc_does_not_survive_the_window(self) -> None:
+        # The point of the settle window: an IOC that becomes ready and then
+        # quietly exits 0 partway through it must not be reported as a success.
+        script = str(SCRIPTS / "iocsh-dies-after-ready.py")
+        with pytest.raises(IocshExitedError):
+            run_iocsh(executable=script, settle=3.0)
+
+    def test_settle_zero_does_not_require_survival(self) -> None:
+        # A startup script that self-exits is fine when nothing asked it to stay up.
+        script = str(SCRIPTS / "iocsh-dies-after-ready.py")
+        run_iocsh(executable=script, settle=0)
 
     def test_returns_ioc_instance(self) -> None:
         script = str(SCRIPTS / "iocsh-print-and-exit.py")
-        result = run_iocsh(executable=script, delay=0)
+        result = run_iocsh(executable=script, settle=0)
         assert isinstance(result, IOC)
 
     def test_returned_ioc_output_accessible(self) -> None:
         script = str(SCRIPTS / "iocsh-print-and-exit.py")
-        result = run_iocsh(executable=script, delay=0)
+        result = run_iocsh(executable=script, settle=0)
         assert "iocRun: All initialization complete" in result.output
 
     def test_init_timeout_and_pattern_are_passed_through(self) -> None:
@@ -55,19 +81,19 @@ class TestRunIocsh:
                 pattern="WILL_NOT_APPEAR",
                 init_timeout=0.1,
                 exit_timeout=5.0,
-                delay=0,
+                settle=0,
             )
 
     def test_pattern_can_wait_for_something_other_than_iocinit(self) -> None:
         script = str(SCRIPTS / "iocsh-print-and-exit.py")
-        result = run_iocsh(executable=script, pattern="Starting iocInit", delay=0)
+        result = run_iocsh(executable=script, pattern="Starting iocInit", settle=0)
         assert "Starting iocInit" in result.output
 
     def test_wait_for_init_false_skips_the_readiness_wait(self) -> None:
         # An IOC started with require's --no-init never reaches iocInit, so
         # readiness never appears and waiting for it can only ever time out.
         script = str(SCRIPTS / "iocsh-no-init.py")
-        result = run_iocsh(executable=script, wait_for_init=False, delay=0)
+        result = run_iocsh(executable=script, wait_for_init=False, settle=0)
         # It never waited for readiness, so it reached exit and shut down; with
         # wait_for_init left on, the companion test shows this would time out.
         assert "Exiting e3 IOC shell" in result.output
@@ -75,11 +101,11 @@ class TestRunIocsh:
     def test_waiting_for_init_is_still_the_default(self) -> None:
         script = str(SCRIPTS / "iocsh-no-init.py")
         with pytest.raises(IocshTimeoutError):
-            run_iocsh(executable=script, delay=0, init_timeout=0.1)
+            run_iocsh(executable=script, settle=0, init_timeout=0.1)
 
     def test_returned_ioc_is_exited(self) -> None:
         script = str(SCRIPTS / "iocsh-print-and-exit.py")
-        result = run_iocsh(executable=script, delay=0)
+        result = run_iocsh(executable=script, settle=0)
         assert not result.is_running()
 
 

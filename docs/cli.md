@@ -1,7 +1,8 @@
 # Command Line Interface
 
 The `run-iocsh` command-line tool runs an IOC, waits for `iocInit` to complete,
-sleeps for a configurable delay, then sends an exit command and checks the output.
+keeps it running for a configurable settle time, then sends an exit command and
+checks the output.
 
 ## Basic usage
 
@@ -13,17 +14,17 @@ run-iocsh st.cmd
 
 ```text
 $ run-iocsh -h
-usage: run-iocsh [-h] [--delay DELAY] [--exit-timeout EXIT_TIMEOUT]
+usage: run-iocsh [-h] [--settle SETTLE] [--exit-timeout EXIT_TIMEOUT]
                  [--init-timeout INIT_TIMEOUT] [--pattern PATTERN]
                  [--no-wait-for-init] [--executable EXECUTABLE]
                  [--fail-on PATTERN] [--no-default-fail-on]
 
-Run iocsh and send the exit command after <delay> seconds
+Run iocsh and send the exit command after <settle> seconds
 
 options:
   -h, --help            show this help message and exit
-  --delay DELAY         time (in seconds) to wait after iocInit before sending
-                        exit (default: 5.0)
+  --settle SETTLE       time (in seconds) to keep the IOC running after it is
+                        ready (default: 5.0)
   --exit-timeout EXIT_TIMEOUT
                         time (in seconds) to wait for the IOC to exit after
                         sending exit (default: 10.0)
@@ -47,19 +48,23 @@ options:
 
 ### Default settings
 
-Runs `iocsh`, waits for `iocInit` to complete, then exits immediately:
+Runs `iocsh`, waits for `iocInit` to complete, keeps the IOC running for the
+default five-second settle, then sends the exit command. If the IOC exits on its
+own before the settle is up, the run fails.
 
 ```bash
 run-iocsh st.cmd
 ```
 
-### Custom delay and exit timeout
+### Custom settle and exit timeout
 
 ```bash
-run-iocsh --delay 10 --exit-timeout 3 st.cmd
+run-iocsh --settle 10 --exit-timeout 3 st.cmd
 ```
 
-`--delay` is the settle time **after** `iocInit` completes, not a total wait.
+`--settle` is time **after** `iocInit` completes, not a total wait. It is what
+makes the run check the IOC stays up: an IOC that starts cleanly and then dies
+two seconds later still fails.
 
 ### Waiting for something other than iocInit
 
@@ -82,7 +87,7 @@ Unrecognised arguments such as `--no-init` are passed straight through to the IO
 executable:
 
 ```bash
-run-iocsh --no-wait-for-init --delay 2 --no-init st.cmd
+run-iocsh --no-wait-for-init --settle 2 --no-init st.cmd
 ```
 
 ### Non-default executables

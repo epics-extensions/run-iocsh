@@ -25,6 +25,10 @@ class IocshStartupError(RunIocshError):
     """Exception raised when IOC exits before the expected readiness pattern appears."""
 
 
+class IocshExitedError(RunIocshError):
+    """Exception raised when the IOC exits on its own before it is told to."""
+
+
 class IocshOutputError(RunIocshError):
     """Base exception for errors detected in IOC output."""
 
