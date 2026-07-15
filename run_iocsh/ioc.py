@@ -6,9 +6,11 @@ import logging
 import os
 import re
 import shutil
+import signal
 import subprocess
 import threading
 import time
+import weakref
 from collections.abc import Sequence
 from enum import Enum, auto
 from typing import BinaryIO, Self
@@ -42,8 +44,85 @@ DEFAULT_WAIT_FOR_TIMEOUT = 5.0
 DEFAULT_POLL_INTERVAL = 0.1
 DEFAULT_DELAY = 5.0
 DEFAULT_THREAD_TIMEOUT = 5.0
+# Seconds an unresponsive IOC gets to shut down on SIGINT before it is killed.
+TERMINATE_GRACE = 0.5
 
 TAIL_CHARS = 500
+
+
+def _drain_stream(
+    stream: BinaryIO,
+    sink: list[tuple[str, str]],
+    label: str,
+) -> None:
+    """Drain ``stream`` into ``sink`` until EOF.
+
+    Deliberately a plain function rather than a method: a thread target holds
+    its arguments for the thread's whole life, so a bound method would keep the
+    IOC referenced and defeat the finalizer that kills an abandoned subprocess.
+    """
+    # list.append is atomic under CPython's GIL, so both reader threads can
+    # append to the shared buffer while the main thread reads it. Appending from
+    # both is also what puts the two streams in arrival order.
+    for raw in iter(stream.readline, b""):
+        decoded = raw.decode("utf-8", errors="replace").rstrip("\n")
+        # EPICS colourises errlog unconditionally, even to a pipe, so the
+        # escapes would otherwise defeat any pattern anchored at the start of a
+        # line, such as the ^ERROR in DEFAULT_FAIL_ON.
+        line = RE_ANSI_SGR.sub("", decoded)
+        sink.append((label, line))
+        log.debug("[%s] %s", label, line)
+
+
+def _terminate_group(proc: subprocess.Popen, pgid: int) -> bool:
+    """Stop the IOC's whole process group and report whether it was running.
+
+    ``iocsh`` is a wrapper that spawns the real IOC (``softIocPVX``) as a child,
+    so signalling only ``proc`` leaves the IOC orphaned -- still holding its CA
+    and PVA ports, and holding the pipes open so the reader threads block. The
+    IOC runs in its own session (``start_new_session``), which makes the wrapper
+    the group leader, so ``pgid`` can be signalled directly. Signalling the group
+    rather than the wrapper reaches the IOC even after the wrapper has exited.
+
+    SIGINT first, the way Ctrl-C stops an interactive IOC: it lets EPICS run its
+    atexit hooks and release resources. If the wrapper does not exit within the
+    grace period, escalate to SIGKILL. The wrapper can also exit on SIGINT while
+    a child ignores it, so once the wrapper is gone SIGKILL the group anyway to
+    reap any child that outlived it.
+
+    That final SIGKILL runs after the wrapper -- the group leader -- has been
+    reaped. With no members left the kernel may reuse the pgid, so a stray group
+    could in principle receive it. The window is microseconds wide and needs
+    PID-space wraparound to matter, so it is named and accepted rather than
+    guarded.
+
+    Returns True if the group was still running when it was signalled, so the
+    caller can attribute the return code to us rather than to the IOC's own exit.
+    """
+    signalled = False
+    with contextlib.suppress(ProcessLookupError):
+        os.killpg(pgid, signal.SIGINT)
+        signalled = True
+    try:
+        proc.wait(timeout=TERMINATE_GRACE)
+    except subprocess.TimeoutExpired:
+        with contextlib.suppress(ProcessLookupError):
+            os.killpg(pgid, signal.SIGKILL)
+        proc.wait()
+    else:
+        with contextlib.suppress(ProcessLookupError):
+            os.killpg(pgid, signal.SIGKILL)
+    return signalled
+
+
+def _kill_orphan(proc: subprocess.Popen, pgid: int) -> None:
+    """Stop the process group of an IOC discarded without calling ``exit()``."""
+    if proc.returncode is not None:
+        # exit() or kill() already reaped it, so its pgid may have been reused;
+        # do not signal it. Only an unreaped wrapper still owns a live group.
+        return
+    log.warning("IOC subprocess %s was discarded without exit(); stopping it", proc.pid)
+    _terminate_group(proc, pgid)
 
 
 class IOC:
@@ -76,6 +155,8 @@ class IOC:
         self._fail_on = fail_on
         self.state = IOC.State.INITIALIZED
         self._lines: list[tuple[str, str]] = []
+        self._finalizer: weakref.finalize | None = None
+        self._pgid: int | None = None
         self._stdout_thread: threading.Thread | None = None
         self._stderr_thread: threading.Thread | None = None
 
@@ -136,23 +217,6 @@ class IOC:
         """
         return self.proc is not None and self.proc.poll() is None
 
-    def _read_stream(
-        self,
-        stream: BinaryIO,
-        label: str,
-    ) -> None:
-        # list.append is atomic under CPython's GIL, so both reader threads can
-        # append to the shared buffer while the main thread reads it. Appending
-        # from both is also what puts the two streams in arrival order.
-        for raw in iter(stream.readline, b""):
-            decoded = raw.decode("utf-8", errors="replace").rstrip("\n")
-            # EPICS colourises errlog unconditionally, even when the stream is a
-            # pipe, so escapes would otherwise defeat every pattern we and our
-            # callers match -- notably the anchor in DEFAULT_FAIL_ON.
-            line = RE_ANSI_SGR.sub("", decoded)
-            self._lines.append((label, line))
-            log.debug("[%s] %s", label, line)
-
     def _join_reader_threads(self) -> None:
         if self._stdout_thread is not None:
             self._stdout_thread.join(timeout=DEFAULT_THREAD_TIMEOUT)
@@ -189,17 +253,32 @@ class IOC:
         cmd = [str(item) for item in [self.executable, *self.args]]
         log.debug("Running: %s", " ".join(cmd))
         self.proc = subprocess.Popen(
-            cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+            cmd,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            # Own session, so teardown can signal the whole group -- the wrapper
+            # and the softIocPVX it spawns -- without also hitting this process.
+            start_new_session=True,
         )
+        # start_new_session makes the wrapper the group leader, so its pgid is
+        # its pid. Capture it so teardown can signal the group even once the
+        # wrapper itself has exited.
+        self._pgid = self.proc.pid
+
+        # Kill the subprocess if this IOC is ever dropped without exit() -- a
+        # fixture that raises between start() and yield never reaches its
+        # teardown, and a leaked IOC keeps holding its ports.
+        self._finalizer = weakref.finalize(self, _kill_orphan, self.proc, self._pgid)
 
         self._stdout_thread = threading.Thread(
-            target=self._read_stream,
-            args=(self.proc.stdout, "stdout"),
+            target=_drain_stream,
+            args=(self.proc.stdout, self._lines, "stdout"),
             daemon=True,
         )
         self._stderr_thread = threading.Thread(
-            target=self._read_stream,
-            args=(self.proc.stderr, "stderr"),
+            target=_drain_stream,
+            args=(self.proc.stderr, self._lines, "stderr"),
             daemon=True,
         )
         self._stdout_thread.start()
@@ -222,8 +301,7 @@ class IOC:
         try:
             self.proc.wait(timeout=self.timeout)
         except subprocess.TimeoutExpired:
-            self.proc.kill()
-            self.proc.wait()
+            _terminate_group(self.proc, self._pgid)
             raise IocshTimeoutError("Failed to send exit to the IOC") from None
         finally:
             self._join_reader_threads()

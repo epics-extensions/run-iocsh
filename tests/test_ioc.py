@@ -1,4 +1,7 @@
+import gc
 import logging
+import os
+import weakref
 from pathlib import Path
 
 import pytest
@@ -11,9 +14,18 @@ from run_iocsh import (
     IocshStateError,
     IocshTimeoutError,
     run_iocsh,
+    wait_for,
 )
 
 SCRIPTS = Path(__file__).parent / "scripts"
+
+
+def _process_alive(pid: int) -> bool:
+    try:
+        os.kill(pid, 0)
+    except OSError:
+        return False
+    return True
 
 
 class TestRunIocsh:
@@ -91,6 +103,71 @@ class TestIOC:
         script = str(SCRIPTS / "iocsh-custom-error.py")
         with pytest.raises(IocshStateError):
             IOC(executable=script).check_output()
+
+
+class TestOrphanCleanup:
+    def test_subprocess_killed_when_ioc_is_discarded(self) -> None:
+        # A pytest fixture that raises between start() and yield never reaches
+        # its teardown, so exit() is never called and the IOC is left holding
+        # its ports.
+        script = str(SCRIPTS / "iocsh-timeout.py")
+        ioc = IOC(executable=script)
+        ioc.start()
+        pid = ioc.pid
+        assert _process_alive(pid)
+
+        del ioc
+        gc.collect()
+
+        wait_for(lambda: not _process_alive(pid), timeout=5.0)
+
+    def test_orphan_finalizer_reaps_the_grandchild(self) -> None:
+        # A discarded IOC that spawned a grandchild must take the grandchild
+        # down too, not just the wrapper.
+        script = str(SCRIPTS / "iocsh-spawns-grandchild.py")
+        ioc = IOC(executable=script)
+        ioc.start()
+        wait_for(lambda: "GRANDCHILD_PID=" in ioc.output, timeout=5.0)
+        line = next(
+            x for x in ioc.output.splitlines() if x.startswith("GRANDCHILD_PID=")
+        )
+        grandchild = int(line.split("=", 1)[1])
+        assert _process_alive(grandchild)
+
+        ioc = None
+        gc.collect()
+
+        wait_for(lambda: not _process_alive(grandchild), timeout=5.0)
+
+    def test_finalizer_reaps_a_child_that_outlived_the_wrapper(self) -> None:
+        # The wrapper exits on its own but leaves a child running. Discarding
+        # the IOC must still take the child down: checking only the dead wrapper
+        # would leak it.
+        script = str(SCRIPTS / "iocsh-wrapper-exits-with-child.py")
+        ioc = IOC(executable=script)
+        ioc.start()
+        wait_for(lambda: "GRANDCHILD_PID=" in ioc.output, timeout=5.0)
+        line = next(
+            x for x in ioc.output.splitlines() if x.startswith("GRANDCHILD_PID=")
+        )
+        grandchild = int(line.split("=", 1)[1])
+        assert _process_alive(grandchild)
+
+        ioc = None
+        gc.collect()
+
+        wait_for(lambda: not _process_alive(grandchild), timeout=5.0)
+
+    def test_reader_threads_do_not_keep_the_ioc_alive(self) -> None:
+        script = str(SCRIPTS / "iocsh-timeout.py")
+        ioc = IOC(executable=script)
+        ioc.start()
+        ref = weakref.ref(ioc)
+
+        del ioc
+        gc.collect()
+
+        assert ref() is None, "reader threads are pinning the IOC in memory"
 
 
 class TestOutput:
