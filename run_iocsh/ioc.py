@@ -11,7 +11,7 @@ import subprocess
 import threading
 import time
 import weakref
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from enum import Enum, auto
 from typing import BinaryIO, Self
 
@@ -50,6 +50,48 @@ DEFAULT_THREAD_TIMEOUT = 5.0
 TERMINATE_GRACE = 0.5
 
 TAIL_CHARS = 500
+
+# A detector inspects captured output and raises if it recognises a failure.
+# Returning without raising means it found nothing.
+Detector = Callable[[str], None]
+
+
+def detect_module_not_found(output: str) -> None:
+    """Raise if require reports that a module failed to load."""
+    m = RE_MODULE_NOT_AVAILABLE.search(output)
+    if m:
+        raise IocshModuleNotFoundError(f"Error loading module: {m.group(1)}")
+
+
+def detect_file_not_found(output: str) -> None:
+    """Raise if the IOC shell reports a file it could not open."""
+    m1 = RE_CANT_OPEN.search(output)
+    m2 = RE_DOES_NOT_EXIST.search(output)
+    if m1 or m2:
+        filename = m1.group(1) if m1 else m2.group(1)
+        raise IocshFileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), filename)
+
+
+def detect_missing_shared_library(output: str) -> None:
+    """Raise if the dynamic linker reports a library it could not open."""
+    m = RE_MISSING_SHARED_LIB.search(output)
+    if m:
+        raise IocshMissingSharedLibraryError(f"Missing shared library: '{m.group(1)}'")
+
+
+#: Detectors applied unless a caller replaces them.
+#:
+#: These read messages emitted by e3/require on Linux, and none of it is ours:
+#: the module text is require's, the shared-library text is glibc's (macOS words
+#: it differently, so that detector silently does nothing there), and the
+#: file-not-found text comes partly from a debug log line in require's IOC shell.
+#: All three have changed under us before. Replace this set for an IOC that is
+#: not require-based, or on a platform that words things differently.
+DEFAULT_DETECTORS: tuple[Detector, ...] = (
+    detect_module_not_found,
+    detect_file_not_found,
+    detect_missing_shared_library,
+)
 
 
 def _drain_stream(
@@ -147,6 +189,7 @@ class IOC:
         executable: str = DEFAULT_EXECUTABLE,
         exit_timeout: float | None = DEFAULT_EXIT_TIMEOUT,
         fail_on: Sequence[str] = DEFAULT_FAIL_ON,
+        detectors: Sequence[Detector] = DEFAULT_DETECTORS,
     ) -> None:
         self.proc = None
         self.args = args
@@ -155,6 +198,7 @@ class IOC:
             raise FileNotFoundError(f"No such file or directory: '{self.executable}'")
         self.exit_timeout = exit_timeout
         self._fail_on = fail_on
+        self._detectors = detectors
         self.state = IOC.State.INITIALIZED
         self._lines: list[tuple[str, str]] = []
         self._finalizer: weakref.finalize | None = None
@@ -174,7 +218,7 @@ class IOC:
     ) -> None:
         self.exit()
         if exc_type is None:
-            self.check_output(fail_on=self._fail_on)
+            self.check_output()
 
     @property
     def pid(self) -> int | None:
@@ -349,7 +393,7 @@ class IOC:
                 # The IOC died before the pattern appeared. If the output names
                 # a cause, raise that; otherwise fall through to the generic
                 # startup error.
-                self._raise_for_reported_error()
+                self._raise_for_reported_error(self._detectors)
                 raise IocshStartupError(
                     f"IOC exited (rc={self.proc.returncode}) before pattern "
                     f"{pattern!r} appeared.\n"
@@ -366,19 +410,23 @@ class IOC:
     def check_output(
         self,
         *,
-        fail_on: Sequence[str] = DEFAULT_FAIL_ON,
+        fail_on: Sequence[str] | None = None,
+        detectors: Sequence[Detector] | None = None,
     ) -> None:
         """Inspect accumulated output and raise on detected errors.
 
-        By default applies the ``DEFAULT_FAIL_ON`` patterns (``^ERROR``) plus
-        the hardcoded checks (module not found, can't open, missing shared
-        library, file does not exist, non-zero exit code).
+        By default applies the ``fail_on`` patterns and ``detectors`` this
+        instance was constructed with, plus the return-code check.
 
         Args:
-            fail_on: Regex patterns to match against ``output``.
-                Replaces ``DEFAULT_FAIL_ON`` entirely — pass
-                ``(*DEFAULT_FAIL_ON, "MY:")`` to extend rather than replace.
-                Pass ``()`` to disable pattern checks altogether.
+            fail_on: Regex patterns to match against ``output``. ``None`` (the
+                default) uses the instance's ``fail_on``. Any value replaces it
+                entirely — pass ``(*DEFAULT_FAIL_ON, "MY:")`` to extend rather
+                than replace, or ``()`` to disable pattern checks altogether.
+            detectors: Callables that inspect the output and raise if they
+                recognise a failure. ``None`` uses the instance's ``detectors``.
+                Any value replaces them entirely; pass ``()`` to rely on
+                ``fail_on`` and the return code alone.
 
         Raises:
             IocshStateError: If called before the process has exited.
@@ -391,6 +439,11 @@ class IOC:
         if self.state is not IOC.State.EXITED:
             raise IocshStateError("check_output() called before exit()")
 
+        if fail_on is None:
+            fail_on = self._fail_on
+        if detectors is None:
+            detectors = self._detectors
+
         log.debug("return code: %s", self.proc.returncode)
         for pattern in fail_on:
             m = re.search(pattern, self.output, re.MULTILINE)
@@ -398,34 +451,21 @@ class IOC:
                 raise IocshPatternMatchError(
                     f"Pattern {pattern!r} matched output: {m.group(0)!r}"
                 )
-        self._raise_for_reported_error()
+        self._raise_for_reported_error(detectors)
         if self.proc.returncode != 0:
             raise IocshProcessError(
                 f"Return code: {self.proc.returncode}\n{self.stderr}"
             )
 
-    def _raise_for_reported_error(self) -> None:
-        """Raise a typed error if the output names a cause we recognise.
+    def _raise_for_reported_error(self, detectors: Sequence[Detector]) -> None:
+        """Raise a typed error if a detector recognises a cause in the output.
 
-        Returns quietly when nothing matches, so callers stay responsible for
-        deciding what an unexplained failure means.
+        Does nothing if no detector matches; the caller decides what an
+        unrecognised failure means.
         """
-        combined = self.output
-        m = RE_MODULE_NOT_AVAILABLE.search(combined)
-        if m:
-            raise IocshModuleNotFoundError(f"Error loading module: {m.group(1)}")
-        m1 = RE_CANT_OPEN.search(combined)
-        m2 = RE_DOES_NOT_EXIST.search(combined)
-        if m1 or m2:
-            filename = m1.group(1) if m1 else m2.group(1)
-            raise IocshFileNotFoundError(
-                errno.ENOENT, os.strerror(errno.ENOENT), filename
-            )
-        m = RE_MISSING_SHARED_LIB.search(combined)
-        if m:
-            raise IocshMissingSharedLibraryError(
-                f"Missing shared library: '{m.group(1)}'"
-            )
+        output = self.output
+        for detector in detectors:
+            detector(output)
 
 
 def run_iocsh(  # noqa: PLR0913 - a convenience wrapper over the whole sequence;
@@ -438,6 +478,7 @@ def run_iocsh(  # noqa: PLR0913 - a convenience wrapper over the whole sequence;
     wait_for_init: bool = True,
     executable: str = DEFAULT_EXECUTABLE,
     fail_on: Sequence[str] = DEFAULT_FAIL_ON,
+    detectors: Sequence[Detector] = DEFAULT_DETECTORS,
 ) -> IOC:
     """Start IOC, wait for ``pattern``, settle, exit, then check the output.
 
@@ -459,6 +500,7 @@ def run_iocsh(  # noqa: PLR0913 - a convenience wrapper over the whole sequence;
             asInit -- where the wait could only ever time out.
         executable: IOC executable to run.
         fail_on: Regex patterns that make ``check_output`` raise.
+        detectors: Callables that recognise a failure in the output.
 
     Returns:
         The exited ``IOC`` instance. Access ``.output``, ``.stdout`` and
@@ -469,6 +511,7 @@ def run_iocsh(  # noqa: PLR0913 - a convenience wrapper over the whole sequence;
         executable=executable,
         exit_timeout=exit_timeout,
         fail_on=fail_on,
+        detectors=detectors,
     ) as ioc:
         if wait_for_init:
             ioc.wait_for_output(pattern=pattern, timeout=init_timeout)

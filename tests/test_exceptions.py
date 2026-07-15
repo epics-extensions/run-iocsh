@@ -6,8 +6,10 @@ from run_iocsh import (
     IocshFileNotFoundError,
     IocshMissingSharedLibraryError,
     IocshModuleNotFoundError,
+    IocshOutputError,
     IocshPatternMatchError,
     IocshProcessError,
+    IocshStartupError,
     IocshTimeoutError,
     run_iocsh,
 )
@@ -99,3 +101,27 @@ class TestCheckOutputFailOn:
         # Passing fail_on= replaces DEFAULT_FAIL_ON; ^ERROR is no longer checked
         script = str(SCRIPTS / "iocsh-error-output.py")
         run_iocsh(settle=0, executable=script, fail_on=("WILL_NOT_MATCH",))
+
+
+class TestDetectors:
+    def test_custom_detector_is_used(self) -> None:
+        def detect_custom(output: str) -> None:
+            if "CUSTOM_ERROR:" in output:
+                msg = "custom detector fired"
+                raise IocshOutputError(msg)
+
+        script = str(SCRIPTS / "iocsh-custom-error.py")
+        with pytest.raises(IocshOutputError, match="custom detector fired"):
+            run_iocsh(executable=script, detectors=(detect_custom,), settle=0)
+
+    def test_default_detectors_can_be_replaced_entirely(self) -> None:
+        # Without the require-flavoured defaults, a module that will not load is
+        # just an IOC that died before it was ready.
+        script = str(SCRIPTS / "iocsh-module-not-found.py")
+        with pytest.raises(IocshStartupError):
+            run_iocsh(executable=script, detectors=(), settle=0)
+
+    def test_default_detectors_still_apply_by_default(self) -> None:
+        script = str(SCRIPTS / "iocsh-module-not-found.py")
+        with pytest.raises(IocshModuleNotFoundError):
+            run_iocsh(executable=script, settle=0)

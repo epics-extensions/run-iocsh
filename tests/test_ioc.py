@@ -13,6 +13,7 @@ from run_iocsh import (
     IocshAlreadyRunningError,
     IocshExitedError,
     IocshModuleNotFoundError,
+    IocshPatternMatchError,
     IocshStartupError,
     IocshStateError,
     IocshTimeoutError,
@@ -172,6 +173,26 @@ class TestIOC:
         script = str(SCRIPTS / "iocsh-custom-error.py")
         with pytest.raises(IocshStateError):
             IOC(executable=script).check_output()
+
+    def test_manual_check_output_uses_the_instance_fail_on(self) -> None:
+        # A manually driven IOC must apply the fail_on it was configured with,
+        # not the global default -- otherwise the configured policy silently
+        # does not apply to the exact lifecycle the docs steer callers toward.
+        script = str(SCRIPTS / "iocsh-custom-error.py")
+        ioc = IOC(executable=script, fail_on=("CUSTOM_ERROR:",))
+        ioc.start()
+        ioc.wait_for_output()
+        ioc.exit()
+        with pytest.raises(IocshPatternMatchError, match="CUSTOM_ERROR:"):
+            ioc.check_output()
+
+    def test_manual_check_output_uses_the_instance_detectors(self) -> None:
+        script = str(SCRIPTS / "iocsh-print-and-exit.py")
+        ioc = IOC(executable=script, detectors=())
+        ioc.start()
+        ioc.wait_for_output()
+        ioc.exit()
+        ioc.check_output()  # empty detectors: a would-be detector must not fire
 
 
 class TestOrphanCleanup:
