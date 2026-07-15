@@ -93,6 +93,42 @@ class TestIOC:
             IOC(executable=script).check_output()
 
 
+class TestOutput:
+    def test_output_includes_both_streams(self) -> None:
+        script = str(SCRIPTS / "iocsh-ansi-error.py")
+        with IOC(executable=script, fail_on=()) as ioc:
+            ioc.wait_for_output()
+        assert 'dbLoadRecords("/tmp/nosuch.db")' in ioc.output  # emitted on stdout
+        assert "ERROR failed to load" in ioc.output  # emitted on stderr
+
+    def test_output_keeps_streams_on_their_own_lines(self) -> None:
+        # The last stdout line must not be glued to the first stderr line.
+        script = str(SCRIPTS / "iocsh-ansi-error.py")
+        with IOC(executable=script, fail_on=()) as ioc:
+            ioc.wait_for_output()
+        for line in ioc.output.splitlines():
+            assert line in (*ioc.stdout.splitlines(), *ioc.stderr.splitlines())
+
+    def test_output_preserves_per_stream_order(self) -> None:
+        script = str(SCRIPTS / "iocsh-ansi-error.py")
+        with IOC(executable=script, fail_on=()) as ioc:
+            ioc.wait_for_output()
+        lines = ioc.output.splitlines()
+        assert lines.index('epicsEnvSet IOCSH_TOP "/tmp"') < lines.index(
+            'dbLoadRecords("/tmp/nosuch.db")'
+        )
+        assert lines.index("Starting iocInit") < lines.index(
+            "iocRun: All initialization complete"
+        )
+
+    def test_streams_remain_separately_accessible(self) -> None:
+        script = str(SCRIPTS / "iocsh-ansi-error.py")
+        with IOC(executable=script, fail_on=()) as ioc:
+            ioc.wait_for_output()
+        assert "ERROR failed to load" not in ioc.stdout
+        assert 'dbLoadRecords("/tmp/nosuch.db")' not in ioc.stderr
+
+
 class TestWaitForOutput:
     def test_returns_when_pattern_found(self) -> None:
         script = str(SCRIPTS / "iocsh-print-and-exit.py")

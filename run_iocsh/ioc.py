@@ -75,8 +75,7 @@ class IOC:
         self.timeout = timeout
         self._fail_on = fail_on
         self.state = IOC.State.INITIALIZED
-        self._stdout_lines: list[str] = []
-        self._stderr_lines: list[str] = []
+        self._lines: list[tuple[str, str]] = []
         self._stdout_thread: threading.Thread | None = None
         self._stderr_thread: threading.Thread | None = None
 
@@ -99,15 +98,34 @@ class IOC:
         """Return the subprocess PID, or None if not yet started."""
         return self.proc.pid if self.proc else None
 
+    def _joined(self, label: str | None = None) -> str:
+        return "\n".join(
+            line for stream, line in self._lines if label in (None, stream)
+        )
+
     @property
     def stdout(self) -> str:
         """Return accumulated stdout as a single newline-joined string."""
-        return "\n".join(self._stdout_lines)
+        return self._joined("stdout")
 
     @property
     def stderr(self) -> str:
         """Return accumulated stderr as a single newline-joined string."""
-        return "\n".join(self._stderr_lines)
+        return self._joined("stderr")
+
+    @property
+    def output(self) -> str:
+        """Return stdout and stderr interleaved, in the order the lines arrived.
+
+        Prefer this over ``stdout + stderr`` for matching: concatenating the two
+        glues the last stdout line onto the first stderr line, and orders every
+        stderr line after every stdout line regardless of when it was emitted.
+
+        Ordering across the two pipes is approximate — it reflects the order the
+        reader threads observed lines, which buffering can perturb. Order within
+        a single stream is exact.
+        """
+        return self._joined()
 
     def is_running(self) -> bool:
         """Return True if the subprocess is still running.
@@ -121,18 +139,18 @@ class IOC:
     def _read_stream(
         self,
         stream: BinaryIO,
-        lines: list[str],
         label: str,
     ) -> None:
-        # list.append is atomic under CPython's GIL, so concurrent reads from
-        # the main thread (via self.stdout / self.stderr) are safe in practice.
+        # list.append is atomic under CPython's GIL, so both reader threads can
+        # append to the shared buffer while the main thread reads it. Appending
+        # from both is also what puts the two streams in arrival order.
         for raw in iter(stream.readline, b""):
             decoded = raw.decode("utf-8", errors="replace").rstrip("\n")
             # EPICS colourises errlog unconditionally, even when the stream is a
             # pipe, so escapes would otherwise defeat every pattern we and our
             # callers match -- notably the anchor in DEFAULT_FAIL_ON.
             line = RE_ANSI_SGR.sub("", decoded)
-            lines.append(line)
+            self._lines.append((label, line))
             log.debug("[%s] %s", label, line)
 
     def _join_reader_threads(self) -> None:
@@ -166,8 +184,7 @@ class IOC:
             )
 
         self.state = IOC.State.STARTED
-        self._stdout_lines = []
-        self._stderr_lines = []
+        self._lines = []
 
         cmd = [str(item) for item in [self.executable, *self.args]]
         log.debug("Running: %s", " ".join(cmd))
@@ -177,12 +194,12 @@ class IOC:
 
         self._stdout_thread = threading.Thread(
             target=self._read_stream,
-            args=(self.proc.stdout, self._stdout_lines, "stdout"),
+            args=(self.proc.stdout, "stdout"),
             daemon=True,
         )
         self._stderr_thread = threading.Thread(
             target=self._read_stream,
-            args=(self.proc.stderr, self._stderr_lines, "stderr"),
+            args=(self.proc.stderr, "stderr"),
             daemon=True,
         )
         self._stdout_thread.start()
