@@ -40,18 +40,20 @@ class TestExceptions:
             run_iocsh("-r", "foo", executable=script, delay=0)
         assert "Error loading module: foo" in str(excinfo.value)
 
-    def test_run_iocsh_iocshload_file_not_found(self) -> None:
-        nonexistent_file = "fake"
+    def test_run_iocsh_startup_script_not_found(self) -> None:
+        # The IOC shell exits before iocInit, so this is only reported as a
+        # typed error because the early-death path names the cause.
+        nonexistent_file = "/nonexistent/st.cmd"
         script = str(SCRIPTS / "iocsh-file-not-exist.py")
         with pytest.raises(IocshFileNotFoundError) as excinfo:
-            run_iocsh(executable=script, delay=0.1)
+            run_iocsh(nonexistent_file, executable=script, delay=0.1)
         assert f"No such file or directory: '{nonexistent_file}'" in str(excinfo.value)
 
     def test_missing_shared_lib(self) -> None:
         script = str(SCRIPTS / "iocsh-missing-shared-lib.py")
         with pytest.raises(IocshMissingSharedLibraryError) as excinfo:
             run_iocsh(executable=script, delay=0)
-        assert str(excinfo.value) == "Missing shared library: 'liblib'"
+        assert str(excinfo.value) == "Missing shared library: 'libfoo.so'"
 
     @pytest.mark.parametrize("name", ["iocsh-timeout.py", "iocsh-stdout-closed.py"])
     def test_run_iocsh_timeout_expired(self, name: str) -> None:

@@ -28,10 +28,10 @@ class TestRunIocsh:
         result = run_iocsh(executable=script, delay=0)
         assert isinstance(result, IOC)
 
-    def test_returned_ioc_stdout_accessible(self) -> None:
+    def test_returned_ioc_output_accessible(self) -> None:
         script = str(SCRIPTS / "iocsh-print-and-exit.py")
         result = run_iocsh(executable=script, delay=0)
-        assert "iocRun: All initialization complete" in result.stdout
+        assert "iocRun: All initialization complete" in result.output
 
     def test_returned_ioc_is_exited(self) -> None:
         script = str(SCRIPTS / "iocsh-print-and-exit.py")
@@ -153,17 +153,20 @@ class TestWaitForOutput:
             with IOC(executable=script, timeout=0.3) as ioc:
                 ioc.wait_for_output(pattern="WILL_NOT_APPEAR", timeout=0.1)
 
-    def test_stdout_accessible_before_exit(self) -> None:
+    def test_output_accessible_before_exit(self) -> None:
+        # Readiness arrives on stderr: EPICS sends errlog there.
         script = str(SCRIPTS / "iocsh-print-and-exit.py")
         with IOC(executable=script) as ioc:
             ioc.wait_for_output()
-            assert "iocRun: All initialization complete" in ioc.stdout
+            assert "iocRun: All initialization complete" in ioc.output
+            assert "iocRun: All initialization complete" in ioc.stderr
 
-    def test_stdout_accessible_after_exit(self) -> None:
+    def test_output_accessible_after_exit(self) -> None:
         script = str(SCRIPTS / "iocsh-print-and-exit.py")
         with IOC(executable=script, timeout=5.0) as ioc:
             ioc.wait_for_output()
-        assert "iocRun: All initialization complete" in ioc.stdout
+        assert "iocRun: All initialization complete" in ioc.output
+        assert 'epicsEnvSet IOCSH_TOP "/tmp"' in ioc.stdout
 
     def test_stderr_accessible_after_exit(self) -> None:
         script = str(SCRIPTS / "iocsh-module-not-found.py")
