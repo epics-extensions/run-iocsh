@@ -239,7 +239,7 @@ class IOC:
         Returns immediately if the pattern is already present in buffered output.
 
         Args:
-            pattern: Regex pattern to search for in combined stdout+stderr.
+            pattern: Regex pattern to search for in ``output``.
             timeout: Maximum seconds to wait before raising.
             poll_interval: Seconds to sleep between polls.
 
@@ -251,22 +251,23 @@ class IOC:
         if self.state is not IOC.State.STARTED:
             raise IocshStateError("wait_for_output() called before start()")
 
-        compiled = re.compile(pattern)
+        # MULTILINE so ^ anchors at the start of any line, matching how fail_on
+        # is applied -- readiness and errors arrive mid-stream, never at offset 0.
+        compiled = re.compile(pattern, re.MULTILINE)
         deadline = time.monotonic() + timeout
 
         while True:
-            if compiled.search(self.stdout + self.stderr):
+            if compiled.search(self.output):
                 return
 
             if not self.is_running():
                 self._join_reader_threads()
-                if compiled.search(self.stdout + self.stderr):
+                if compiled.search(self.output):
                     return
                 raise IocshStartupError(
                     f"IOC exited (rc={self.proc.returncode}) before pattern "
                     f"{pattern!r} appeared.\n"
-                    f"stdout (last {TAIL_CHARS} chars):\n{self.stdout[-TAIL_CHARS:]}\n"
-                    f"stderr (last {TAIL_CHARS} chars):\n{self.stderr[-TAIL_CHARS:]}"
+                    f"output (last {TAIL_CHARS} chars):\n{self.output[-TAIL_CHARS:]}"
                 )
 
             if time.monotonic() >= deadline:
@@ -288,7 +289,7 @@ class IOC:
         library, file does not exist, non-zero exit code).
 
         Args:
-            fail_on: Regex patterns to match against combined stdout+stderr.
+            fail_on: Regex patterns to match against ``output``.
                 Replaces ``DEFAULT_FAIL_ON`` entirely — pass
                 ``(*DEFAULT_FAIL_ON, "MY:")`` to extend rather than replace.
                 Pass ``()`` to disable pattern checks altogether.
@@ -305,7 +306,7 @@ class IOC:
             raise IocshStateError("check_output() called before exit()")
 
         log.debug("return code: %s", self.proc.returncode)
-        combined = self.stdout + self.stderr
+        combined = self.output
         for pattern in fail_on:
             m = re.search(pattern, combined, re.MULTILINE)
             if m:

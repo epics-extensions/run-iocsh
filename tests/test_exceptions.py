@@ -73,6 +73,13 @@ class TestCheckOutputFailOn:
         with pytest.raises(IocshPatternMatchError, match="ERROR"):
             run_iocsh(delay=0, executable=script)
 
+    def test_anchored_pattern_matches_first_stderr_line(self) -> None:
+        # Concatenating stdout + stderr glues the first stderr line onto the
+        # last stdout line, which defeats the anchor.
+        script = str(SCRIPTS / "iocsh-ansi-error.py")
+        with pytest.raises(IocshPatternMatchError, match="DEBUG"):
+            run_iocsh(delay=0, executable=script, fail_on=(r"^DEBUG: PID",))
+
     def test_user_fail_on_pattern_raises(self) -> None:
         script = str(SCRIPTS / "iocsh-custom-error.py")
         with pytest.raises(IocshPatternMatchError, match="CUSTOM_ERROR:"):

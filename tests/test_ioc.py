@@ -185,3 +185,10 @@ class TestWaitForOutput:
         script = str(SCRIPTS / "iocsh-print-and-exit.py")
         with pytest.raises(IocshStateError):
             IOC(executable=script).wait_for_output()
+
+    def test_pattern_anchor_matches_per_line(self) -> None:
+        # ^ should anchor at the start of any line, as it does for fail_on --
+        # readiness and errors arrive mid-stream, never at offset 0.
+        script = str(SCRIPTS / "iocsh-print-and-exit.py")
+        with IOC(executable=script) as ioc:
+            ioc.wait_for_output(pattern="^iocRun: All initialization complete")
