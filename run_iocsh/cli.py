@@ -47,10 +47,17 @@ def parse_arguments(  # noqa: D103
         help="time (in seconds) to wait for the IOC to become ready",
     )
 
-    parser.add_argument(
+    readiness = parser.add_mutually_exclusive_group()
+    readiness.add_argument(
         "--pattern",
         default=DEFAULT_INIT_PATTERN,
         help="regex to wait for before considering the IOC ready",
+    )
+    readiness.add_argument(
+        "--no-wait-for-init",
+        action="store_true",
+        default=False,
+        help="do not wait for the IOC to become ready (e.g. with iocsh --no-init)",
     )
 
     parser.add_argument(
@@ -95,6 +102,7 @@ def main() -> None:  # noqa: D103
             exit_timeout=namespace.exit_timeout,
             init_timeout=namespace.init_timeout,
             pattern=namespace.pattern,
+            wait_for_init=not namespace.no_wait_for_init,
             executable=namespace.executable,
             fail_on=base + tuple(namespace.fail_on),
         )

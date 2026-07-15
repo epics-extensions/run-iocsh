@@ -63,6 +63,20 @@ class TestRunIocsh:
         result = run_iocsh(executable=script, pattern="Starting iocInit", delay=0)
         assert "Starting iocInit" in result.output
 
+    def test_wait_for_init_false_skips_the_readiness_wait(self) -> None:
+        # An IOC started with require's --no-init never reaches iocInit, so
+        # readiness never appears and waiting for it can only ever time out.
+        script = str(SCRIPTS / "iocsh-no-init.py")
+        result = run_iocsh(executable=script, wait_for_init=False, delay=0)
+        # It never waited for readiness, so it reached exit and shut down; with
+        # wait_for_init left on, the companion test shows this would time out.
+        assert "Exiting e3 IOC shell" in result.output
+
+    def test_waiting_for_init_is_still_the_default(self) -> None:
+        script = str(SCRIPTS / "iocsh-no-init.py")
+        with pytest.raises(IocshTimeoutError):
+            run_iocsh(executable=script, delay=0, init_timeout=0.1)
+
     def test_returned_ioc_is_exited(self) -> None:
         script = str(SCRIPTS / "iocsh-print-and-exit.py")
         result = run_iocsh(executable=script, delay=0)

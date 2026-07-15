@@ -434,6 +434,7 @@ def run_iocsh(  # noqa: PLR0913 - a convenience wrapper over the whole sequence;
     exit_timeout: float | None = DEFAULT_EXIT_TIMEOUT,
     init_timeout: float | None = DEFAULT_INIT_TIMEOUT,
     pattern: str = DEFAULT_INIT_PATTERN,
+    wait_for_init: bool = True,
     executable: str = DEFAULT_EXECUTABLE,
     fail_on: Sequence[str] = DEFAULT_FAIL_ON,
 ) -> IOC:
@@ -446,7 +447,12 @@ def run_iocsh(  # noqa: PLR0913 - a convenience wrapper over the whole sequence;
             exit. ``None`` waits forever.
         init_timeout: Seconds to wait for ``pattern`` to appear. ``None`` waits
             forever.
-        pattern: Regex to wait for before considering the IOC ready.
+        pattern: Regex to wait for before considering the IOC ready. Ignored
+            when ``wait_for_init`` is False.
+        wait_for_init: Whether to wait for the IOC to become ready at all. Pass
+            False for an IOC that never reaches iocInit -- one started with
+            require's ``--no-init``, or one whose startup deadlocks during
+            asInit -- where the wait could only ever time out.
         executable: IOC executable to run.
         fail_on: Regex patterns that make ``check_output`` raise.
 
@@ -460,6 +466,7 @@ def run_iocsh(  # noqa: PLR0913 - a convenience wrapper over the whole sequence;
         exit_timeout=exit_timeout,
         fail_on=fail_on,
     ) as ioc:
-        ioc.wait_for_output(pattern=pattern, timeout=init_timeout)
+        if wait_for_init:
+            ioc.wait_for_output(pattern=pattern, timeout=init_timeout)
         time.sleep(delay)
     return ioc

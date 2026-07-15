@@ -15,8 +15,8 @@ run-iocsh st.cmd
 $ run-iocsh -h
 usage: run-iocsh [-h] [--delay DELAY] [--exit-timeout EXIT_TIMEOUT]
                  [--init-timeout INIT_TIMEOUT] [--pattern PATTERN]
-                 [--executable EXECUTABLE] [--fail-on PATTERN]
-                 [--no-default-fail-on]
+                 [--no-wait-for-init] [--executable EXECUTABLE]
+                 [--fail-on PATTERN] [--no-default-fail-on]
 
 Run iocsh and send the exit command after <delay> seconds
 
@@ -32,6 +32,8 @@ options:
                         (default: 5.0)
   --pattern PATTERN     regex to wait for before considering the IOC ready
                         (default: iocRun: All initialization complete)
+  --no-wait-for-init    do not wait for the IOC to become ready (e.g. with
+                        iocsh --no-init) (default: False)
   --executable EXECUTABLE
                         IOC executable to run (default: iocsh)
   --fail-on PATTERN     raise if regex PATTERN matches output; ^ERROR is
@@ -71,6 +73,17 @@ run-iocsh --pattern "autosave: All ok" --init-timeout 30 st.cmd
 
 Without `--pattern`, the tool waits for `iocRun: All initialization complete`
 before sleeping.
+
+### IOCs that never reach iocInit
+
+Some IOCs are not meant to get that far — `iocsh --no-init` omits `iocInit`
+entirely. Waiting for readiness there can only ever time out, so skip the wait.
+Unrecognised arguments such as `--no-init` are passed straight through to the IOC
+executable:
+
+```bash
+run-iocsh --no-wait-for-init --delay 2 --no-init st.cmd
+```
 
 ### Non-default executables
 
