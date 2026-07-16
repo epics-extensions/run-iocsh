@@ -57,6 +57,14 @@ class TestExceptions:
             run_iocsh(executable=script, settle=0)
         assert str(excinfo.value) == "Missing shared library: 'libfoo.so'"
 
+    def test_missing_shared_lib_macos_wording(self) -> None:
+        # dyld words this nothing like glibc, so the Linux-only detector left a
+        # missing library undetected on macOS.
+        script = str(SCRIPTS / "iocsh-missing-dylib.py")
+        with pytest.raises(IocshMissingSharedLibraryError) as excinfo:
+            run_iocsh(executable=script, settle=0)
+        assert str(excinfo.value) == "Missing shared library: 'libfoo.dylib'"
+
     @pytest.mark.parametrize("name", ["iocsh-timeout.py", "iocsh-stdout-closed.py"])
     def test_run_iocsh_timeout_expired(self, name: str) -> None:
         with pytest.raises(IocshTimeoutError) as excinfo:

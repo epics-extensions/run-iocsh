@@ -38,6 +38,7 @@ RE_MODULE_NOT_AVAILABLE = re.compile(r"Error loading module:? (\S+?)\.?$", re.MU
 RE_CANT_OPEN = re.compile(r"[Cc]an't\s*open\s*(.*?):")
 RE_DOES_NOT_EXIST = re.compile(r"File (.*) does not exist")
 RE_MISSING_SHARED_LIB = re.compile(r"(lib.*): cannot open shared object file")
+RE_MISSING_DYLIB = re.compile(r"dlopen\((lib[^,)]+)[^)]*\): tried:")
 RE_BUILTIN_FAIL_ON = r"^ERROR"
 DEFAULT_FAIL_ON: tuple[str, ...] = (RE_BUILTIN_FAIL_ON,)
 
@@ -74,20 +75,24 @@ def detect_file_not_found(output: str) -> None:
 
 
 def detect_missing_shared_library(output: str) -> None:
-    """Raise if the dynamic linker reports a library it could not open."""
-    m = RE_MISSING_SHARED_LIB.search(output)
+    """Raise if the dynamic linker reports a library it could not open.
+
+    glibc and dyld report this differently: glibc prints "cannot open shared
+    object file" for a ``.so``, while dyld lists every path it tried for a
+    ``.dylib``. Both forms are matched.
+    """
+    m = RE_MISSING_SHARED_LIB.search(output) or RE_MISSING_DYLIB.search(output)
     if m:
         raise IocshMissingSharedLibraryError(f"Missing shared library: '{m.group(1)}'")
 
 
 #: Detectors applied unless a caller replaces them.
 #:
-#: These read messages emitted by e3/require on Linux, and none of it is ours:
-#: the module text is require's, the shared-library text is glibc's (macOS words
-#: it differently, so that detector silently does nothing there), and the
-#: file-not-found text comes partly from a debug log line in require's IOC shell.
-#: All three have changed under us before. Replace this set for an IOC that is
-#: not require-based, or on a platform that words things differently.
+#: Each matches text emitted upstream, not by this library: the module-load and
+#: file-not-found strings come from require's IOC shell, the shared-library
+#: string from the platform's dynamic linker. Upstream has changed all of it
+#: before without warning. Replace this set for an IOC that is not require-based,
+#: or for a platform whose messages differ.
 DEFAULT_DETECTORS: tuple[Detector, ...] = (
     detect_module_not_found,
     detect_file_not_found,
