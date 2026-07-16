@@ -6,13 +6,24 @@ and controlling IOC processes. The main exports are:
 - **`IOC`**: context manager for managing an IOC process
 - **`run_iocsh()`**: convenience wrapper for simple run-and-check use cases
 - **`wait_for()`**: standalone polling utility for readiness checks
+- **`DEFAULT_DETECTORS`**: the replaceable set of error detectors
 - **Exception classes**: typed errors for different failure modes
 
 ## Usage patterns
 
 Both patterns use the same `IOC` class. Output is checked automatically when
-the context manager exits — any errors in stdout or stderr raise a typed
-exception. Access `ioc.stdout` and `ioc.stderr` to inspect the output directly.
+the context manager exits cleanly — any errors raise a typed exception.
+
+Three properties expose the captured output. `ioc.output` is both streams in the
+order the lines arrived, and is what patterns are matched against; `ioc.stdout`
+and `ioc.stderr` are each stream on its own. Prefer `output` unless you
+specifically care which stream a line came from: EPICS sends errlog to stderr,
+so nearly everything interesting — including `iocRun: All initialization
+complete` — arrives there, while stdout carries the shell's own echoes.
+
+ANSI escapes are stripped as output is captured. EPICS colourises errlog even
+when its output is a pipe, which would otherwise defeat any pattern anchored at
+the start of a line.
 
 ### Run-and-check
 
@@ -36,8 +47,26 @@ assert "SomeRecord" in pvs
 from run_iocsh import run_iocsh
 
 ioc = run_iocsh("st.cmd")
-# ioc.stdout / ioc.stderr available for inspection
+# ioc.output / ioc.stdout / ioc.stderr available for inspection
 ```
+
+`run_iocsh()` names each phase of the run separately:
+
+| Argument | Meaning |
+| --- | --- |
+| `pattern` | what counts as ready |
+| `init_timeout` | how long to wait for it |
+| `wait_for_init` | whether to wait at all — `False` for an IOC that never reaches `iocInit` |
+| `settle` | how long to keep the IOC running once ready |
+| `exit_timeout` | how long the IOC gets to shut down after being told to exit |
+
+Every timeout follows the same rule: `None` waits forever, a number is seconds,
+`0` checks once without blocking.
+
+`settle` also makes the run require the IOC to stay up: with a non-zero `settle`,
+an IOC that becomes ready and then exits on its own before the window is up
+raises `IocshExitedError`, even on a clean exit code. It defaults to `0`, where
+no survival is required.
 
 ### Live IOC
 
@@ -91,8 +120,12 @@ wait_for(lambda: ctxt.get("MY:IOC:Ready") is not None, timeout=10)
 ### Phase 3 — background poll settled (optional)
 
 Drivers that poll a device in the background may need time after phase 2 before
-their first values arrive. This is driver-specific; use an explicit
-`time.sleep()` when necessary.
+their first values arrive. Nothing observable marks it: the fetch leaves no
+trace in the IOC's output, and waiting for the value itself would only test that
+the test passes. An explicit `time.sleep()` is the honest option here.
+
+`run_iocsh()` exposes the same idea as `settle`, which keeps the IOC running for
+a fixed time before exiting. It defaults to 0.
 
 ## `wait_for`
 
@@ -110,7 +143,8 @@ wait_for(lambda: ctxt.get("MY:PV") is not None, timeout=10)
 wait_for(lambda: save_file.exists(), timeout=10)
 ```
 
-Raises `TimeoutError` on expiry.
+Raises `IocshTimeoutError` on expiry, which is also a builtin `TimeoutError`,
+so either will catch it.
 
 ## `wait_for_output`
 
@@ -127,9 +161,36 @@ ioc.wait_for_output("autosave: All ok", timeout=10)
 ioc.wait_for_output()  # second call is instant
 ```
 
-If the IOC exits before the pattern appears, raises `IocshStartupError` with
-the last 500 characters of stdout and stderr. If the timeout expires while the
-IOC is still running, raises `IocshTimeoutError`.
+If the IOC exits before the pattern appears, the
+[detectors](#replacing-the-detectors) run first, so a recognised cause is
+reported as itself — a missing module raises
+`IocshModuleNotFoundError` rather than a generic startup failure. If nothing is
+recognised, `IocshStartupError` is raised with the last 500 characters of the
+output. If the timeout expires while the IOC is still running, raises
+`IocshTimeoutError`.
+
+`timeout=None` waits forever and `timeout=0` checks the buffered output once
+without blocking, as everywhere else in this library.
+
+## Tearing down an IOC that will not exit
+
+`exit()` sends the exit command and waits for the IOC to exit, killing it and
+raising `IocshTimeoutError` if it does not within `exit_timeout`. That is the
+right default, but an IOC that deadlocks during `asInit` never reaches a shell
+that reads stdin, so `exit()` can only time out. For that case, `kill()` stops
+the process outright without raising:
+
+```python
+ioc = IOC("st.cmd")
+ioc.start()
+ioc.wait_for_output("some snippet loaded", timeout=10)
+ioc.kill()
+ioc.check_output()  # captured output is intact; the kill signal is not counted
+```
+
+A killed IOC's return code is the signal it was sent, so `check_output()` does
+not report it as a process failure — the `fail_on` and detector checks still
+apply.
 
 ## Non-default executables
 
@@ -154,36 +215,79 @@ run-iocsh --executable softIocPVA -D /path/to/softIoc.dbd st.cmd
 ## `check_output` and `fail_on`
 
 `check_output()` is called automatically when the `IOC` context manager exits
-cleanly. It applies the following checks against the accumulated output:
+cleanly. It applies `fail_on`, then `DEFAULT_DETECTORS`, then the return code:
 
 | Check | Exception |
 | --- | --- |
-| `Module X not available` | `IocshModuleNotFoundError` |
+| `^ERROR` (DB load failures, macro errors, syntax errors) | `IocshPatternMatchError` |
+| `Error loading module: X` | `IocshModuleNotFoundError` |
 | `Can't open ...` / `File ... does not exist` | `IocshFileNotFoundError` |
-| `libX: cannot open shared object file` | `IocshMissingSharedLibraryError` |
-| `^ERROR` (DB loading errors, macro errors, syntax errors) | `IocshPatternMatchError` |
+| a library the dynamic linker could not open | `IocshMissingSharedLibraryError` |
 | Non-zero exit code | `IocshProcessError` |
 
-The `^ERROR` pattern is stored in `RE_BUILTIN_FAIL_ON` and catches errors that
-EPICS prints before `iocInit` but after which the IOC still exits 0 — a common
-source of false-pass failures in CI.
+The `^ERROR` pattern is stored in `RE_BUILTIN_FAIL_ON`. It matters because an
+IOC can fail and still exit 0 — a database that will not load is reported only
+in the output, so the return code alone would call that run a success.
+
+:::{warning}
+`check_output()` runs only when the context manager exits **cleanly**. If you
+drive the IOC with explicit `start()` and `exit()` calls, nothing checks the
+output and `fail_on` never applies — the IOC can log errors all run and the test
+will pass. Call `check_output()` yourself after `exit()` in that case.
+:::
+
+### Replacing the detectors
+
+`DEFAULT_DETECTORS` matches messages emitted by e3/require, not by this library.
+Upstream has changed all of it before without warning, so treat it as a default
+rather than a rule. The shared-library detector matches both glibc's and dyld's
+wording, since the two platforms phrase it differently.
+
+Replace the set for an IOC that is not require-based, or on a platform whose
+messages differ:
+
+```python
+from run_iocsh import DEFAULT_DETECTORS, IOC
+
+
+def detect_my_failure(output: str) -> None:
+    if "MY_DRIVER: init failed" in output:
+        raise RuntimeError("driver failed to initialise")
+
+
+# Extend
+IOC("st.cmd", detectors=(*DEFAULT_DETECTORS, detect_my_failure))
+
+# Or replace entirely, e.g. for an IOC that is not require-based
+IOC("st.cmd", detectors=(detect_my_failure,))
+```
+
+A detector takes the captured output and raises if it recognises a failure.
+Returning without raising means it found nothing.
 
 ### Adding patterns
 
-Pass `fail_on` to `IOC.__init__` to check for additional patterns on top of the
-built-in checks:
+Pass `fail_on` to `IOC.__init__`. It **replaces** `DEFAULT_FAIL_ON` rather than
+extending it, so include the default explicitly to keep the `^ERROR` check —
+dropping it re-opens the false negative it exists to catch:
 
 ```python
-with IOC("st.cmd", fail_on=["^WARNING:", r"FATAL\b"]) as ioc:
+from run_iocsh import DEFAULT_FAIL_ON, IOC
+
+with IOC("st.cmd", fail_on=(*DEFAULT_FAIL_ON, "^WARNING:", r"FATAL\b")) as ioc:
     ioc.wait_for_output()
 ```
 
-Or call `check_output()` explicitly inside the `with` block when needed:
+`check_output()` runs only after the process has exited, so to check explicitly,
+drive the lifecycle by hand rather than calling it inside the `with` block. It
+defaults to the `fail_on` and `detectors` the IOC was constructed with:
 
 ```python
-with IOC("st.cmd") as ioc:
-    ioc.wait_for_output()
-    ioc.check_output(fail_on=["^WARNING:"])
+ioc = IOC("st.cmd", fail_on=(*DEFAULT_FAIL_ON, "^WARNING:"))
+ioc.start()
+ioc.wait_for_output()
+ioc.exit()
+ioc.check_output()  # applies the instance's fail_on
 ```
 
 ### CLI
@@ -192,7 +296,9 @@ with IOC("st.cmd") as ioc:
 run-iocsh --fail-on "^WARNING" st.cmd
 ```
 
-`--fail-on` patterns are added on top of the built-in `^ERROR` check.
+Unlike the library, the CLI **adds** `--fail-on` patterns on top of the built-in
+`^ERROR` check; pass `--no-default-fail-on` to drop it. See the
+[CLI reference](cli.md) for the full set of flags.
 
 ## caplog integration
 

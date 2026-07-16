@@ -90,6 +90,10 @@ executable:
 run-iocsh --no-wait-for-init --settle 2 --no-init st.cmd
 ```
 
+A startup script that deadlocks during `asInit` — never reaching `iocInit` and
+never reading stdin — cannot be shut down with the exit command; the library's
+`IOC.kill()` is the way to tear one down and still inspect what it loaded.
+
 ### Non-default executables
 
 Pass `--executable` to use any IOC binary. Extra arguments are forwarded as-is:
