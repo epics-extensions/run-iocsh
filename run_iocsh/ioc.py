@@ -26,6 +26,7 @@ from run_iocsh.exceptions import (
     IocshStartupError,
     IocshStateError,
     IocshTimeoutError,
+    RunIocshError,
 )
 from run_iocsh.utils import DEFAULT_POLL_INTERVAL
 
@@ -216,9 +217,26 @@ class IOC:
         exc_value: object,
         exc_traceback: object,
     ) -> None:
-        self.exit()
-        if exc_type is None:
-            self.check_output()
+        if exc_type is not None:
+            # The with-block body already failed. An exception raised here would
+            # replace that one, reporting a symptom of the failure instead of its
+            # cause -- an IOC that never became ready also tends not to exit.
+            try:
+                self.exit()
+            except RunIocshError:
+                log.warning("exit() failed while handling an error", exc_info=True)
+            return
+        try:
+            self.exit()
+        except IocshTimeoutError:
+            # The IOC ignored exit. If its output shows a cause, a logged error
+            # it never recovered from, report that rather than the timeout it led
+            # to. Only the output checks apply, not the return code: exit()
+            # killed the process, so its code reflects the signal.
+            self._raise_for_matched_pattern(self._fail_on)
+            self._raise_for_reported_error(self._detectors)
+            raise
+        self.check_output()
 
     @property
     def pid(self) -> int | None:
@@ -445,17 +463,22 @@ class IOC:
             detectors = self._detectors
 
         log.debug("return code: %s", self.proc.returncode)
+        self._raise_for_matched_pattern(fail_on)
+        self._raise_for_reported_error(detectors)
+        if self.proc.returncode != 0:
+            raise IocshProcessError(
+                f"Return code: {self.proc.returncode}\n"
+                f"output (last {TAIL_CHARS} chars):\n{self.output[-TAIL_CHARS:]}"
+            )
+
+    def _raise_for_matched_pattern(self, fail_on: Sequence[str]) -> None:
+        """Raise if any ``fail_on`` pattern matches the output."""
         for pattern in fail_on:
             m = re.search(pattern, self.output, re.MULTILINE)
             if m:
                 raise IocshPatternMatchError(
                     f"Pattern {pattern!r} matched output: {m.group(0)!r}"
                 )
-        self._raise_for_reported_error(detectors)
-        if self.proc.returncode != 0:
-            raise IocshProcessError(
-                f"Return code: {self.proc.returncode}\n{self.stderr}"
-            )
 
     def _raise_for_reported_error(self, detectors: Sequence[Detector]) -> None:
         """Raise a typed error if a detector recognises a cause in the output.

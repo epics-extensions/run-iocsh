@@ -320,6 +320,23 @@ class TestWaitForOutput:
             with IOC(executable=script, exit_timeout=0.3) as ioc:
                 ioc.wait_for_output(pattern="WILL_NOT_APPEAR", timeout=0.1)
 
+    def test_detected_error_beats_a_later_exit_timeout(self) -> None:
+        # The IOC logged a real error and then ignored exit. The error is the
+        # actionable failure; the exit timeout is a downstream symptom.
+        script = str(SCRIPTS / "iocsh-error-then-ignores-exit.py")
+        with pytest.raises(IocshPatternMatchError, match="ERROR"):
+            with IOC(executable=script, exit_timeout=0.3) as ioc:
+                ioc.wait_for_output()
+
+    def test_exit_failure_does_not_mask_the_original_error(self) -> None:
+        # This IOC ignores the exit command, so exit() times out too. The
+        # caller needs to hear that it never became ready, not that it then
+        # also refused to leave.
+        script = str(SCRIPTS / "iocsh-timeout.py")
+        with pytest.raises(IocshTimeoutError, match="WILL_NOT_APPEAR"):
+            with IOC(executable=script, exit_timeout=0.3) as ioc:
+                ioc.wait_for_output(pattern="WILL_NOT_APPEAR", timeout=0.1)
+
     def test_none_timeout_returns_when_pattern_found(self) -> None:
         script = str(SCRIPTS / "iocsh-print-and-exit.py")
         with IOC(executable=script) as ioc:
