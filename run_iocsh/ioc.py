@@ -206,6 +206,7 @@ class IOC:
         self._fail_on = fail_on
         self._detectors = detectors
         self.state = IOC.State.INITIALIZED
+        self._killed = False
         self._lines: list[tuple[str, str]] = []
         self._finalizer: weakref.finalize | None = None
         self._pgid: int | None = None
@@ -317,6 +318,7 @@ class IOC:
             )
 
         self.state = IOC.State.STARTED
+        self._killed = False
         self._lines = []
 
         cmd = [str(item) for item in [self.executable, *self.args]]
@@ -354,7 +356,12 @@ class IOC:
         self._stderr_thread.start()
 
     def exit(self) -> None:
-        """Send the exit command to the running IOC."""
+        """Send the exit command to the running IOC and wait for it to exit.
+
+        Raises:
+            IocshTimeoutError: If the IOC does not exit within ``exit_timeout``.
+                It is killed first, so the process is always reaped.
+        """
         if self.state is not IOC.State.STARTED:
             log.warning("IOC is not running")
             return
@@ -370,10 +377,30 @@ class IOC:
         try:
             self.proc.wait(timeout=self.exit_timeout)
         except subprocess.TimeoutExpired:
-            _terminate_group(self.proc, self._pgid)
+            self._killed = _terminate_group(self.proc, self._pgid)
             raise IocshTimeoutError("Failed to send exit to the IOC") from None
         finally:
             self._join_reader_threads()
+
+    def kill(self) -> None:
+        """Kill the IOC without asking it to exit gracefully.
+
+        For an IOC that will not exit on command -- one that deadlocks during
+        asInit and never reaches a shell that reads stdin -- ``exit()`` can only
+        time out. ``kill()`` stops it outright and, unlike ``exit()``, does not
+        raise. Captured output stays available, and ``check_output()`` can run
+        afterwards: when kill() stopped a running process the return code is the
+        kill signal and is not counted as a failure, so the ``fail_on`` and
+        detector checks still apply. An IOC that had already exited on its own
+        keeps its return code, which check_output() still checks.
+        """
+        if self.state is not IOC.State.STARTED:
+            log.warning("IOC is not running")
+            return
+
+        self._killed = _terminate_group(self.proc, self._pgid)
+        self._join_reader_threads()
+        self.state = IOC.State.EXITED
 
     def wait_for_output(
         self,
@@ -470,7 +497,9 @@ class IOC:
         log.debug("return code: %s", self.proc.returncode)
         self._raise_for_matched_pattern(fail_on)
         self._raise_for_reported_error(detectors)
-        if self.proc.returncode != 0:
+        if not self._killed and self.proc.returncode != 0:
+            # A killed IOC's code is our signal, not the IOC's own exit; the
+            # output checks above still apply, the return-code check does not.
             raise IocshProcessError(
                 f"Return code: {self.proc.returncode}\n"
                 f"output (last {TAIL_CHARS} chars):\n{self.output[-TAIL_CHARS:]}"

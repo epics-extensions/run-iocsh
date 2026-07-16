@@ -14,6 +14,7 @@ from run_iocsh import (
     IocshExitedError,
     IocshModuleNotFoundError,
     IocshPatternMatchError,
+    IocshProcessError,
     IocshStartupError,
     IocshStateError,
     IocshTimeoutError,
@@ -193,6 +194,121 @@ class TestIOC:
         ioc.wait_for_output()
         ioc.exit()
         ioc.check_output()  # empty detectors: a would-be detector must not fire
+
+
+class TestKill:
+    def test_kill_tears_down_an_ioc_that_will_not_exit(self) -> None:
+        # An IOC deadlocked in asInit never becomes ready and never reads stdin,
+        # so exit() can only time out. kill() is the way to stop it, and it lets
+        # the caller still inspect what the IOC managed to load.
+        script = str(SCRIPTS / "iocsh-deadlocks-in-init.py")
+        ioc = IOC(executable=script)
+        ioc.start()
+        wait_for(lambda: "iocshLoad" in ioc.output, timeout=5.0)
+        ioc.kill()
+        assert not ioc.is_running()
+        assert "iocshLoad" in ioc.output  # loaded output survived the teardown
+
+    def test_kill_transitions_to_exited(self) -> None:
+        script = str(SCRIPTS / "iocsh-deadlocks-in-init.py")
+        ioc = IOC(executable=script)
+        ioc.start()
+        ioc.kill()
+        with pytest.raises(IocshStateError, match="already exited"):
+            ioc.start()
+
+    def test_check_output_after_kill_ignores_the_signal_return_code(self) -> None:
+        # The kill signal is our doing, not the IOC's exit, so check_output must
+        # not report it as a process failure -- the caller still wants to run
+        # their own output checks on what the IOC managed to produce.
+        script = str(SCRIPTS / "iocsh-deadlocks-in-init.py")
+        ioc = IOC(executable=script)
+        ioc.start()
+        ioc.kill()
+        ioc.check_output()
+
+    def test_kill_after_self_exit_still_checks_the_return_code(self) -> None:
+        # If the IOC already died on its own with a non-zero code, kill() is a
+        # no-op and must not mask that: it only suppresses the code when it
+        # actually stopped a running process.
+        script = str(SCRIPTS / "iocsh-crash.py")
+        ioc = IOC(executable=script)
+        ioc.start()
+        wait_for(lambda: not ioc.is_running(), timeout=5.0)
+        ioc.kill()
+        with pytest.raises(IocshProcessError):
+            ioc.check_output()
+
+    def test_exit_timeout_does_not_misreport_the_kill_signal(self) -> None:
+        # exit() times out and stops the IOC with SIGINT. A caller that catches
+        # the timeout and inspects output must not see that signal reported as a
+        # process failure.
+        script = str(SCRIPTS / "iocsh-timeout.py")
+        ioc = IOC(executable=script, exit_timeout=0.3)
+        ioc.start()
+        ioc.wait_for_output()
+        with pytest.raises(IocshTimeoutError):
+            ioc.exit()
+        ioc.check_output()  # must not raise IocshProcessError for the signal
+
+    def test_kill_before_start_warns(self, caplog: pytest.LogCaptureFixture) -> None:
+        script = str(SCRIPTS / "iocsh-print-and-exit.py")
+        with caplog.at_level(logging.WARNING):
+            IOC(executable=script).kill()
+        assert "IOC is not running" in caplog.text
+
+
+class TestProcessGroupTeardown:
+    def test_kill_reaps_the_grandchild(self) -> None:
+        # iocsh spawns softIocPVX, so killing only the wrapper orphans the IOC.
+        # kill() must take down the whole process group.
+        script = str(SCRIPTS / "iocsh-spawns-grandchild.py")
+        ioc = IOC(executable=script)
+        ioc.start()
+        wait_for(lambda: "GRANDCHILD_PID=" in ioc.output, timeout=5.0)
+        line = next(
+            x for x in ioc.output.splitlines() if x.startswith("GRANDCHILD_PID=")
+        )
+        grandchild = int(line.split("=", 1)[1])
+        assert _process_alive(grandchild)
+
+        ioc.kill()
+
+        wait_for(lambda: not _process_alive(grandchild), timeout=5.0)
+
+    def test_group_kill_reaps_a_child_that_survived_the_wrapper(self) -> None:
+        # The wrapper dies on SIGINT but its child ignores it. Killing only the
+        # wrapper would leave the child running, so teardown kills the group.
+        script = str(SCRIPTS / "iocsh-child-ignores-sigint.py")
+        ioc = IOC(executable=script)
+        ioc.start()
+        wait_for(lambda: "GRANDCHILD_PID=" in ioc.output, timeout=5.0)
+        line = next(
+            x for x in ioc.output.splitlines() if x.startswith("GRANDCHILD_PID=")
+        )
+        grandchild = int(line.split("=", 1)[1])
+        assert _process_alive(grandchild)
+
+        ioc.kill()
+
+        wait_for(lambda: not _process_alive(grandchild), timeout=5.0)
+
+    def test_teardown_sends_sigint_first(self) -> None:
+        # The IOC gets a clean-shutdown signal before any forceful one.
+        script = str(SCRIPTS / "iocsh-catches-sigint.py")
+        ioc = IOC(executable=script)
+        ioc.start()
+        ioc.wait_for_output()
+        ioc.kill()
+        assert "CLEAN_SHUTDOWN_ON_SIGINT" in ioc.output
+
+    def test_teardown_escalates_when_sigint_is_ignored(self) -> None:
+        script = str(SCRIPTS / "iocsh-ignores-sigint.py")
+        ioc = IOC(executable=script)
+        ioc.start()
+        ioc.wait_for_output()
+        ioc.kill()  # must still return, via SIGKILL
+        assert not ioc.is_running()
 
 
 class TestOrphanCleanup:
