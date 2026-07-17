@@ -75,14 +75,13 @@ Keep the IOC running while tests interact with it over CA or PVA:
 ```python
 import pytest
 from p4p.client.thread import Context
-from run_iocsh import IOC, wait_for
+from run_iocsh import IOC
 
 
 @pytest.fixture(scope="session")
 def ioc():
     with IOC("st.cmd") as proc:
-        proc.wait_for_output()                                    # wait for iocInit
-        wait_for(lambda: ctxt.get("MY:IOC:Ready") is not None)    # wait for PVA (optional)
+        proc.wait_for_output()   # wait for iocInit
         yield proc
 
 
