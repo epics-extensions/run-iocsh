@@ -16,6 +16,7 @@ maintainers = [
   { name = "Anders Lindh Olsson", email = "anders.lindh.olsson@ess.eu" },
 ]
 authors = [
+  { name = "Benjamin Bertrand" },
   { name = "Anders Lindh Olsson", email = "anders.lindh.olsson@ess.eu" },
 ]
 requires-python = ">=3.11"
