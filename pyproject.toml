@@ -58,6 +58,17 @@ lint.ignore = [
   "TD",     # TODOs
   "TRY003", # long messages outside of the exception class
 ]
+lint.per-file-ignores."examples/**" = [
+  "ANN",     # type annotations -- example code reads closer to a user's
+  "ARG",     # unused fixture arguments (pytest passes them for ordering)
+  "D",       # docstyle
+  "DTZ",     # timezone-naive datetime
+  "INP001",  # packages missing __init__.py
+  "PLR0913", # parametrized tests take many fixtures plus params
+  "PLR2004", # magic values
+  "S101",    # asserts
+  "S607",    # partial executable path (the lewis simulator)
+]
 lint.per-file-ignores."run_iocsh/**" = [
   "D100", # "public" module missing docstring
 ]
