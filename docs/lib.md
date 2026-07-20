@@ -95,6 +95,19 @@ def test_pv_value(ioc, ctxt):
     assert ctxt.get("MY:IOC:SomePV") == 42
 ```
 
+`IOC.ready()` does the start-and-wait a live fixture would otherwise write by
+hand. It constructs the IOC, starts it, and waits until it is ready, then yields
+it still running; leaving the block exits the IOC and checks its output, the same
+as `with IOC(...)`. Use it instead of `run_iocsh()` when the test needs the IOC
+to stay up rather than run once and exit.
+
+```python
+@pytest.fixture(scope="session")
+def ioc():
+    with IOC.ready("st.cmd") as ioc:
+        yield ioc
+```
+
 ## Readiness
 
 EPICS IOCs typically go through up to three phases before they are fully ready:

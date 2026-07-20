@@ -11,7 +11,7 @@ import subprocess
 import threading
 import time
 import weakref
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Iterator, Sequence
 from enum import Enum, auto
 from typing import BinaryIO, Self
 
@@ -401,6 +401,50 @@ class IOC:
         self._killed = _terminate_group(self.proc, self._pgid)
         self._join_reader_threads()
         self.state = IOC.State.EXITED
+
+    @classmethod
+    @contextlib.contextmanager
+    def ready(  # noqa: PLR0913 - mirrors run_iocsh; each argument names a phase.
+        cls,
+        *args: str,
+        pattern: str = DEFAULT_INIT_PATTERN,
+        init_timeout: float | None = DEFAULT_INIT_TIMEOUT,
+        executable: str = DEFAULT_EXECUTABLE,
+        exit_timeout: float | None = DEFAULT_EXIT_TIMEOUT,
+        fail_on: Sequence[str] = DEFAULT_FAIL_ON,
+        detectors: Sequence[Detector] = DEFAULT_DETECTORS,
+    ) -> Iterator[Self]:
+        """Start an IOC, block until it is ready, and yield it still running.
+
+        Constructs the IOC, starts it, waits until it is ready, and yields it
+        still running for the caller to use over CA or PVA. Leaving the block
+        exits the IOC and checks its output, the same contract as
+        ``with IOC(...)``. Use it instead of ``run_iocsh()`` when a test needs
+        the IOC to stay up. If the IOC never becomes ready, that is raised
+        before the yield -- as the recognised cause where a detector matches,
+        else a startup error.
+
+        Args:
+            args: Arguments passed to the IOC executable.
+            pattern: Regex to wait for before yielding, as in ``wait_for_output``.
+            init_timeout: Seconds to wait for ``pattern``. ``None`` waits forever.
+            executable: IOC executable to run.
+            exit_timeout: Seconds to wait for the IOC to exit on block exit.
+            fail_on: Regex patterns that make the exit-time check raise.
+            detectors: Callables that recognise a failure in the output.
+
+        Yields:
+            The running ``IOC`` instance, ready for interaction.
+        """
+        with cls(
+            *args,
+            executable=executable,
+            exit_timeout=exit_timeout,
+            fail_on=fail_on,
+            detectors=detectors,
+        ) as ioc:
+            ioc.wait_for_output(pattern=pattern, timeout=init_timeout)
+            yield ioc
 
     def wait_for_output(
         self,

@@ -500,3 +500,19 @@ class TestWaitForOutput:
         script = str(SCRIPTS / "iocsh-print-and-exit.py")
         with IOC(executable=script) as ioc:
             ioc.wait_for_output(pattern="^iocRun: All initialization complete")
+
+
+class TestReady:
+    def test_ready_waits_for_init_and_yields_running_ioc(self) -> None:
+        script = str(SCRIPTS / "iocsh-wait-for-exit.py")
+        with IOC.ready(executable=script) as ioc:
+            assert ioc.is_running()
+            assert "All initialization complete" in ioc.output
+        assert not ioc.is_running()
+
+    def test_ready_surfaces_a_startup_failure(self) -> None:
+        # An IOC that dies before readiness raises its recognised cause before
+        # ready() yields, not a generic startup error.
+        script = str(SCRIPTS / "iocsh-module-not-found.py")
+        with pytest.raises(IocshModuleNotFoundError), IOC.ready(executable=script):
+            pass
