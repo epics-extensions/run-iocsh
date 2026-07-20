@@ -185,7 +185,7 @@ class IOC:
     class State(Enum):
         """Lifecycle state of the IOC subprocess."""
 
-        INITIALIZED = auto()
+        CREATED = auto()
         STARTED = auto()
         EXITED = auto()
 
@@ -205,7 +205,7 @@ class IOC:
         self.exit_timeout = exit_timeout
         self._fail_on = fail_on
         self._detectors = detectors
-        self.state = IOC.State.INITIALIZED
+        self.state = IOC.State.CREATED
         self._killed = False
         self._lines: list[tuple[str, str]] = []
         self._finalizer: weakref.finalize | None = None
