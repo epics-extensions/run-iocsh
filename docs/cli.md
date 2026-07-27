@@ -1,7 +1,8 @@
 # Command Line Interface
 
 The `run-iocsh` command-line tool runs an IOC, waits for `iocInit` to complete,
-sleeps for a configurable delay, then sends an exit command and checks the output.
+keeps it running for a configurable settle time, then sends an exit command and
+checks the output.
 
 ## Basic usage
 
@@ -13,18 +14,27 @@ run-iocsh st.cmd
 
 ```text
 $ run-iocsh -h
-usage: run-iocsh [-h] [--delay DELAY] [--timeout TIMEOUT]
-                 [--executable EXECUTABLE] [--fail-on PATTERN]
-                 [--no-default-fail-on]
+usage: run-iocsh [-h] [--settle SETTLE] [--exit-timeout EXIT_TIMEOUT]
+                 [--init-timeout INIT_TIMEOUT] [--pattern PATTERN]
+                 [--no-wait-for-init] [--executable EXECUTABLE]
+                 [--fail-on PATTERN] [--no-default-fail-on]
 
-Run iocsh and send the exit command after <delay> seconds
+Run iocsh and send the exit command after <settle> seconds
 
 options:
   -h, --help            show this help message and exit
-  --delay DELAY         time (in seconds) to wait after iocInit before sending
-                        exit (default: 5.0)
-  --timeout TIMEOUT     time (in seconds) to wait for the IOC to exit after
-                        sending exit (default: None)
+  --settle SETTLE       time (in seconds) to keep the IOC running after it is
+                        ready (default: 5.0)
+  --exit-timeout EXIT_TIMEOUT
+                        time (in seconds) to wait for the IOC to exit after
+                        sending exit (default: 10.0)
+  --init-timeout INIT_TIMEOUT
+                        time (in seconds) to wait for the IOC to become ready
+                        (default: 5.0)
+  --pattern PATTERN     regex to wait for before considering the IOC ready
+                        (default: iocRun: All initialization complete)
+  --no-wait-for-init    do not wait for the IOC to become ready (e.g. with
+                        iocsh --no-init) (default: False)
   --executable EXECUTABLE
                         IOC executable to run (default: iocsh)
   --fail-on PATTERN     raise if regex PATTERN matches output; ^ERROR is
@@ -38,20 +48,51 @@ options:
 
 ### Default settings
 
-Runs `iocsh`, waits for `iocInit` to complete, then exits immediately:
+Runs `iocsh`, waits for `iocInit` to complete, keeps the IOC running for the
+default five-second settle, then sends the exit command. If the IOC exits on its
+own before the settle is up, the run fails.
 
 ```bash
 run-iocsh st.cmd
 ```
 
-### Custom delay and timeout
+### Custom settle and exit timeout
 
 ```bash
-run-iocsh --delay 10 --timeout 3 st.cmd
+run-iocsh --settle 10 --exit-timeout 3 st.cmd
 ```
 
-`--delay` is the settle time **after** `iocInit` completes, not a total wait.
-The tool always waits for `iocRun: All initialization complete` before sleeping.
+`--settle` is time **after** `iocInit` completes, not a total wait. It is what
+makes the run check the IOC stays up: an IOC that starts cleanly and then dies
+two seconds later still fails.
+
+### Waiting for something other than iocInit
+
+`--init-timeout` bounds the wait for readiness, and `--pattern` chooses what
+counts as ready. Both are separate from `--exit-timeout`, which only bounds how
+long the IOC gets to shut down after being told to exit:
+
+```bash
+run-iocsh --pattern "autosave: All ok" --init-timeout 30 st.cmd
+```
+
+Without `--pattern`, the tool waits for `iocRun: All initialization complete`
+before sleeping.
+
+### IOCs that never reach iocInit
+
+Some IOCs are not meant to get that far — `iocsh --no-init` omits `iocInit`
+entirely. Waiting for readiness there can only ever time out, so skip the wait.
+Unrecognised arguments such as `--no-init` are passed straight through to the IOC
+executable:
+
+```bash
+run-iocsh --no-wait-for-init --settle 2 --no-init st.cmd
+```
+
+A startup script that deadlocks during `asInit` — never reaching `iocInit` and
+never reading stdin — cannot be shut down with the exit command; the library's
+`IOC.kill()` is the way to tear one down and still inspect what it loaded.
 
 ### Non-default executables
 

@@ -90,6 +90,8 @@ myst_enable_extensions = [
     "smartquotes",
     "substitution",
 ]
+# Give headings anchors so intra-page links like [text](#a-heading) resolve.
+myst_heading_anchors = 3
 
 todo_include_todos = True
 
