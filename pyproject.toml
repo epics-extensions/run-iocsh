@@ -44,7 +44,7 @@ urls.Homepage = "https://gitlab.esss.lu.se/e3/run-iocsh"
 scripts.run-iocsh = "run_iocsh.cli:main"
 
 [tool.setuptools]
-packages.find.where = [ "." ]
+packages = [ "run_iocsh" ]
 
 [tool.ruff]
 target-version = "py311"
