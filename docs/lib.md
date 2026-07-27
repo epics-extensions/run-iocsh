@@ -178,8 +178,13 @@ If the IOC exits before the pattern appears, the
 reported as itself — a missing module raises
 `IocshModuleNotFoundError` rather than a generic startup failure. If nothing is
 recognised, `IocshStartupError` is raised with the last 500 characters of the
-output. If the timeout expires while the IOC is still running, raises
-`IocshTimeoutError`.
+output.
+
+If the timeout expires while the IOC is still running, raises
+`IocshTimeoutError`, also with the last 500 characters of the output. For the
+default readiness pattern the message names `wait_for_init=False`: an IOC
+started with require's `--no-init`, or one deadlocked in `asInit`, never
+reaches `iocInit` and can only time out here.
 
 `timeout=None` waits forever and `timeout=0` checks the buffered output once
 without blocking, as everywhere else in this library.

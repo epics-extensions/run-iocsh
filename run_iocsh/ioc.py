@@ -466,7 +466,10 @@ class IOC:
         Raises:
             IocshStateError: If called before the process has started.
             IocshStartupError: If the IOC exits before the pattern appears.
-            IocshTimeoutError: If ``timeout`` expires while the IOC is still running.
+            IocshTimeoutError: If ``timeout`` expires while the IOC is still
+                running. For the readiness pattern the message names
+                ``wait_for_init=False``, since an IOC that never reaches
+                iocInit cannot pass this wait.
         """
         if self.state is not IOC.State.STARTED:
             raise IocshStateError("wait_for_output() called before start()")
@@ -495,8 +498,20 @@ class IOC:
                 )
 
             if deadline is not None and time.monotonic() >= deadline:
+                # The liveness check above ran this same iteration, so what is
+                # missing is the line, not the process.
+                hint = " The IOC is still running."
+                if pattern == DEFAULT_INIT_PATTERN:
+                    # An IOC started with require's --no-init, or deadlocked in
+                    # asInit, never reaches iocInit and can only time out here.
+                    hint += (
+                        " Pass wait_for_init=False (--no-wait-for-init) for an"
+                        " IOC that does not reach iocInit."
+                    )
                 raise IocshTimeoutError(
-                    f"Timed out after {timeout}s waiting for {pattern!r}"
+                    f"Timed out after {timeout}s waiting for {pattern!r}."
+                    f"{hint}\n"
+                    f"output (last {TAIL_CHARS} chars):\n{self.output[-TAIL_CHARS:]}"
                 )
 
             time.sleep(poll_interval)
