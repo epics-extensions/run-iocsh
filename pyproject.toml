@@ -7,7 +7,7 @@ requires = [
 
 [project]
 name = "run-iocsh"
-version = "3.0.0"
+version = "3.1.0"
 description = "Wrapper to test IOCs"
 readme = { file = "README.rst", content-type = "text/x-rst" }
 keywords = [ "e3", "epics", "ess", "iocsh" ]
