@@ -53,6 +53,33 @@ TERMINATE_GRACE = 0.5
 
 TAIL_CHARS = 500
 
+# Names removed in earlier releases, kept only so the failure can name what
+# replaced them, as cli.py does for its flags. delay is the one that is not a
+# straight substitution: settle differs from it in more than the name.
+_RENAMED_ARGUMENTS = {
+    "delay": (
+        "delay, replaced by settle in 3.0.0: settle defaults to 0 rather than"
+        " 5, and raises IocshExitedError if the IOC exits during the window"
+    ),
+    "timeout": "timeout, renamed to exit_timeout in 3.0.0",
+}
+_RENAMED_ATTRIBUTES = {
+    "outs": "outs was renamed to stdout in 2.0.0",
+    "errs": "errs was renamed to stderr in 2.0.0",
+    "timeout": "timeout was renamed to exit_timeout in 3.0.0",
+}
+
+
+def _reject_renamed_arguments(func: str, kwargs: dict[str, object]) -> None:
+    """Raise for any leftover keyword argument, naming any known replacement."""
+    for name in kwargs:
+        if name in _RENAMED_ARGUMENTS:
+            raise TypeError(f"{func}() got {_RENAMED_ARGUMENTS[name]}")
+    if kwargs:
+        unexpected = next(iter(kwargs))
+        raise TypeError(f"{func}() got an unexpected keyword argument {unexpected!r}")
+
+
 # A detector inspects captured output and raises if it recognises a failure.
 # Returning without raising means it found nothing.
 Detector = Callable[[str], None]
@@ -196,7 +223,9 @@ class IOC:
         exit_timeout: float | None = DEFAULT_EXIT_TIMEOUT,
         fail_on: Sequence[str] = DEFAULT_FAIL_ON,
         detectors: Sequence[Detector] = DEFAULT_DETECTORS,
+        **kwargs: object,
     ) -> None:
+        _reject_renamed_arguments("IOC", kwargs)
         self.proc = None
         self.args = args
         self.executable = executable
@@ -212,6 +241,24 @@ class IOC:
         self._pgid: int | None = None
         self._stdout_thread: threading.Thread | None = None
         self._stderr_thread: threading.Thread | None = None
+
+    def __getattr__(self, name: str) -> object:
+        # Only reached once normal lookup has failed, where an AttributeError
+        # was the outcome anyway.
+        renamed = _RENAMED_ATTRIBUTES.get(name)
+        if renamed:
+            raise AttributeError(renamed)
+        raise AttributeError(
+            f"{type(self).__name__!r} object has no attribute {name!r}"
+        )
+
+    def __setattr__(self, name: str, value: object) -> None:
+        # Assignment is guarded too: ioc.timeout = 5 used to bound the exit and
+        # would otherwise bind an attribute nothing reads.
+        renamed = _RENAMED_ATTRIBUTES.get(name)
+        if renamed:
+            raise AttributeError(renamed)
+        super().__setattr__(name, value)
 
     def __enter__(self) -> Self:
         self.start()
@@ -466,7 +513,10 @@ class IOC:
         Raises:
             IocshStateError: If called before the process has started.
             IocshStartupError: If the IOC exits before the pattern appears.
-            IocshTimeoutError: If ``timeout`` expires while the IOC is still running.
+            IocshTimeoutError: If ``timeout`` expires while the IOC is still
+                running. For the readiness pattern the message names
+                ``wait_for_init=False``, since an IOC that never reaches
+                iocInit cannot pass this wait.
         """
         if self.state is not IOC.State.STARTED:
             raise IocshStateError("wait_for_output() called before start()")
@@ -495,8 +545,20 @@ class IOC:
                 )
 
             if deadline is not None and time.monotonic() >= deadline:
+                # The liveness check above ran this same iteration, so what is
+                # missing is the line, not the process.
+                hint = " The IOC is still running."
+                if pattern == DEFAULT_INIT_PATTERN:
+                    # An IOC started with require's --no-init, or deadlocked in
+                    # asInit, never reaches iocInit and can only time out here.
+                    hint += (
+                        " Pass wait_for_init=False (--no-wait-for-init) for an"
+                        " IOC that does not reach iocInit."
+                    )
                 raise IocshTimeoutError(
-                    f"Timed out after {timeout}s waiting for {pattern!r}"
+                    f"Timed out after {timeout}s waiting for {pattern!r}."
+                    f"{hint}\n"
+                    f"output (last {TAIL_CHARS} chars):\n{self.output[-TAIL_CHARS:]}"
                 )
 
             time.sleep(poll_interval)
@@ -580,6 +642,7 @@ def run_iocsh(  # noqa: PLR0913 - a convenience wrapper over the whole sequence;
     executable: str = DEFAULT_EXECUTABLE,
     fail_on: Sequence[str] = DEFAULT_FAIL_ON,
     detectors: Sequence[Detector] = DEFAULT_DETECTORS,
+    **kwargs: object,
 ) -> IOC:
     """Start IOC, wait for ``pattern``, settle, exit, then check the output.
 
@@ -602,11 +665,14 @@ def run_iocsh(  # noqa: PLR0913 - a convenience wrapper over the whole sequence;
         executable: IOC executable to run.
         fail_on: Regex patterns that make ``check_output`` raise.
         detectors: Callables that recognise a failure in the output.
+        kwargs: Taken only to reject renamed arguments by the name that
+            replaced them. Anything else raises the usual ``TypeError``.
 
     Returns:
         The exited ``IOC`` instance. Access ``.output``, ``.stdout`` and
         ``.stderr`` for inspection after the call returns.
     """
+    _reject_renamed_arguments("run_iocsh", kwargs)
     with IOC(
         *args,
         executable=executable,

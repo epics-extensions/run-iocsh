@@ -436,6 +436,34 @@ class TestWaitForOutput:
             with IOC(executable=script, exit_timeout=0.3) as ioc:
                 ioc.wait_for_output(pattern="WILL_NOT_APPEAR", timeout=0.1)
 
+    def test_timeout_on_readiness_points_at_the_no_init_switch(self) -> None:
+        # An IOC started with --no-init never reaches iocInit, so the readiness
+        # wait can only time out. Nothing is broken, and the message should say
+        # what to do rather than read like a crash.
+        script = str(SCRIPTS / "iocsh-no-init.py")
+        with pytest.raises(IocshTimeoutError) as excinfo:
+            with IOC(executable=script) as ioc:
+                ioc.wait_for_output(timeout=0.3)
+        assert "still running" in str(excinfo.value)
+        assert "wait_for_init=False" in str(excinfo.value)
+
+    def test_timeout_reports_the_output_it_did_see(self) -> None:
+        script = str(SCRIPTS / "iocsh-no-init.py")
+        with pytest.raises(IocshTimeoutError) as excinfo:
+            with IOC(executable=script) as ioc:
+                ioc.wait_for_output(timeout=0.3)
+        assert "Starting e3 IOC shell" in str(excinfo.value)
+
+    def test_timeout_on_a_custom_pattern_keeps_iocinit_out_of_it(self) -> None:
+        # This IOC reached iocInit; a later signal is what is missing, so
+        # skipping the readiness wait would not help.
+        script = str(SCRIPTS / "iocsh-timeout.py")
+        with pytest.raises(IocshTimeoutError) as excinfo:
+            with IOC(executable=script, exit_timeout=0.3) as ioc:
+                ioc.wait_for_output(pattern="WILL_NOT_APPEAR", timeout=0.1)
+        assert "still running" in str(excinfo.value)
+        assert "wait_for_init" not in str(excinfo.value)
+
     def test_detected_error_beats_a_later_exit_timeout(self) -> None:
         # The IOC logged a real error and then ignored exit. The error is the
         # actionable failure; the exit timeout is a downstream symptom.
@@ -516,3 +544,60 @@ class TestReady:
         script = str(SCRIPTS / "iocsh-module-not-found.py")
         with pytest.raises(IocshModuleNotFoundError), IOC.ready(executable=script):
             pass
+
+
+class TestRenamedNames:
+    # None of these names work any more. What is tested is that the failure
+    # says what to write instead, as the CLI does for its renamed flags.
+
+    def test_delay_names_settle_and_warns_it_differs(self) -> None:
+        with pytest.raises(TypeError, match="settle") as excinfo:
+            run_iocsh("st.cmd", delay=0)
+        assert "IocshExitedError" in str(excinfo.value)
+
+    def test_run_iocsh_timeout_names_exit_timeout(self) -> None:
+        with pytest.raises(TypeError, match="exit_timeout"):
+            run_iocsh("st.cmd", timeout=5)
+
+    def test_ioc_timeout_names_exit_timeout(self) -> None:
+        with pytest.raises(TypeError, match="exit_timeout"):
+            IOC("st.cmd", timeout=5)
+
+    def test_renamed_arguments_are_rejected_before_anything_starts(self) -> None:
+        # No executable named st.cmd exists; reaching that check would mean the
+        # rename was diagnosed late, behind an unrelated error.
+        with pytest.raises(TypeError):
+            run_iocsh(executable="no-such-iocsh", delay=0)
+
+    def test_unknown_arguments_keep_the_usual_error(self) -> None:
+        with pytest.raises(TypeError, match="unexpected keyword argument 'nonsense'"):
+            run_iocsh("st.cmd", nonsense=1)
+        with pytest.raises(TypeError, match="unexpected keyword argument 'nonsense'"):
+            IOC("st.cmd", nonsense=1)
+
+    @pytest.mark.parametrize(
+        ("old", "new"),
+        [("outs", "stdout"), ("errs", "stderr"), ("timeout", "exit_timeout")],
+    )
+    def test_reading_a_renamed_attribute_names_its_replacement(
+        self, old: str, new: str
+    ) -> None:
+        script = str(SCRIPTS / "iocsh-print-and-exit.py")
+        ioc = IOC(executable=script)
+        with pytest.raises(AttributeError, match=new):
+            getattr(ioc, old)
+
+    def test_assigning_a_renamed_attribute_is_rejected_too(self) -> None:
+        # ioc.timeout = 5 used to bound the exit. Bound quietly, it leaves a
+        # test that thinks it set a timeout and did not.
+        script = str(SCRIPTS / "iocsh-print-and-exit.py")
+        ioc = IOC(executable=script)
+        with pytest.raises(AttributeError, match="exit_timeout"):
+            ioc.timeout = 5
+
+    def test_genuinely_missing_attributes_are_unaffected(self) -> None:
+        script = str(SCRIPTS / "iocsh-print-and-exit.py")
+        ioc = IOC(executable=script)
+        with pytest.raises(AttributeError, match="no attribute 'nonsense'"):
+            _ = ioc.nonsense
+        assert not hasattr(ioc, "outs")
