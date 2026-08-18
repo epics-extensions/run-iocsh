@@ -14,6 +14,7 @@ except Exception:
 
 extensions = [
     "myst_parser",
+    "sphinx.ext.napoleon",
     "sphinx_design",
     "sphinx.ext.intersphinx",
     "sphinx.ext.viewcode",
@@ -35,7 +36,6 @@ autoapi_options = [
     "show-inheritance",
     "show-module-summary",
     "special-members",
-    "imported-members",
 ]
 
 html_theme = "furo"
