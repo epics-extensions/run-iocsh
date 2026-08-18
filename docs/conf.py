@@ -43,19 +43,17 @@ html_theme = "furo"
 html_theme_options = {
     "navigation_with_keys": True,
     "top_of_page_button": "edit",
-    "source_repository": "https://gitlab.esss.lu.se/e3/run-iocsh",
-    "source_branch": "master",
+    "source_repository": "https://github.com/epics-extensions/run-iocsh",
+    "source_branch": "main",
     "source_directory": "docs/",
-    "source_edit_link": "https://gitlab.esss.lu.se/e3/run-iocsh/-/edit/master/docs/{filename}",
-    "source_view_link": "https://gitlab.esss.lu.se/e3/run-iocsh/-/blob/master/docs/{filename}",
     "sidebar_hide_name": False,
     "footer_icons": [
         {
-            "name": "GitLab",
-            "url": "https://gitlab.esss.lu.se/e3/run-iocsh",
+            "name": "GitHub",
+            "url": "https://github.com/epics-extensions/run-iocsh",
             "html": """
-                <svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 24 24">
-                    <path d="M23.6004 9.5927l-.0337-.0862L20.3.9814a.851.851 0 00-.3362-.405.8748.8748 0 00-.9997.0539.8748.8748 0 00-.29.4399l-3.2055 8.3842H7.5373l-3.2056-8.3842a.8573.8573 0 00-.29-.4412.8748.8748 0 00-.9997-.0537.8585.8585 0 00-.3362.4049L.4332 9.5015l-.0325.0862a6.0657 6.0657 0 002.0119 7.0105l.0113.0087.03.0213 4.976 3.7264 2.462 1.863 1.4995 1.1321a1.0085 1.0085 0 001.2197 0l1.4995-1.1321 2.4619-1.863 4.976-3.7264.0113-.0087a6.0657 6.0657 0 002.0094-7.003z"/>
+                <svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 16 16">
+                    <path fill-rule="evenodd" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.012 8.012 0 0016 8c0-4.42-3.58-8-8-8z"/>
                 </svg>
             """,
             "class": "",

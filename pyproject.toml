@@ -40,7 +40,7 @@ optional-dependencies.dev = [
   "coverage",
   "pytest",
 ]
-urls.Homepage = "https://gitlab.esss.lu.se/e3/run-iocsh"
+urls.Homepage = "https://github.com/epics-extensions/run-iocsh"
 scripts.run-iocsh = "run_iocsh.cli:main"
 
 [tool.setuptools]
