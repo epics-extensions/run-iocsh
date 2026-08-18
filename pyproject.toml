@@ -40,6 +40,14 @@ optional-dependencies.dev = [
   "coverage",
   "pytest",
 ]
+optional-dependencies.docs = [
+  "furo",
+  "myst-parser",
+  "sphinx",
+  "sphinx-autoapi",
+  "sphinx-copybutton",
+  "sphinx-design",
+]
 urls.Homepage = "https://github.com/epics-extensions/run-iocsh"
 scripts.run-iocsh = "run_iocsh.cli:main"
 
