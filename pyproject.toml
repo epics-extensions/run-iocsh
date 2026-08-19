@@ -48,7 +48,9 @@ optional-dependencies.docs = [
   "sphinx-copybutton",
   "sphinx-design",
 ]
+urls.Documentation = "https://epics-extensions.github.io/run-iocsh"
 urls.Homepage = "https://github.com/epics-extensions/run-iocsh"
+urls.Issues = "https://github.com/epics-extensions/run-iocsh/issues"
 scripts.run-iocsh = "run_iocsh.cli:main"
 
 [tool.setuptools]
