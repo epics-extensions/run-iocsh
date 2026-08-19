@@ -8,7 +8,7 @@ complete, and raises typed exceptions if errors are detected in the output.
 Requires Python >= 3.11 and an activated e3 environment (or any environment
 providing the IOC executable).
 
-**Documentation:** https://e3.pages.ess.eu/run-iocsh
+**Documentation:** https://epics-extensions.github.io/run-iocsh
 
 Installation
 ------------

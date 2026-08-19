@@ -1,5 +1,5 @@
 # Contributing
 
-Contributions via MR only. Small MRs are preferred.
+Contributions via PR only. Small PRs are preferred.
 
 All tests must pass. New additions should preferably be covered by tests.
