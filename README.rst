@@ -15,7 +15,7 @@ Installation
 
 .. code-block:: console
 
-    $ pip install run-iocsh -i https://artifactory.esss.lu.se/artifactory/api/pypi/pypi-virtual/simple
+    $ pip install run-iocsh
 
 Quick Start
 -----------
