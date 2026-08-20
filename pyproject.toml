@@ -1,17 +1,18 @@
 [build-system]
 build-backend = "setuptools.build_meta"
 requires = [
-  "setuptools>=42",
+  "setuptools>=77",
+  "setuptools-scm>=8",
   "wheel",
 ]
 
 [project]
 name = "run-iocsh"
-version = "3.1.0"
 description = "Wrapper to test IOCs"
 readme = { file = "README.rst", content-type = "text/x-rst" }
 keywords = [ "e3", "epics", "ess", "iocsh" ]
-license = { text = "BSD-2 license" }
+license = "BSD-2-Clause"
+license-files = [ "LICENSE" ]
 maintainers = [
   { name = "Anders Lindh Olsson", email = "anders.lindh.olsson@ess.eu" },
   { name = "Simon Rose", email = "simon.rose@ess.eu" },
@@ -27,15 +28,15 @@ authors = [
 ]
 requires-python = ">=3.11"
 classifiers = [
-  "Development Status :: 3 - Alpha",
+  "Development Status :: 5 - Production/Stable",
   "Intended Audience :: Developers",
-  "License :: OSI Approved :: BSD License",
   "Programming Language :: Python :: 3 :: Only",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
   "Programming Language :: Python :: 3.13",
   "Programming Language :: Python :: 3.14",
 ]
+dynamic = [ "version" ]
 optional-dependencies.dev = [
   "coverage",
   "pytest",
@@ -48,11 +49,27 @@ optional-dependencies.docs = [
   "sphinx-copybutton",
   "sphinx-design",
 ]
+urls.Documentation = "https://epics-extensions.github.io/run-iocsh"
 urls.Homepage = "https://github.com/epics-extensions/run-iocsh"
+urls.Issues = "https://github.com/epics-extensions/run-iocsh/issues"
 scripts.run-iocsh = "run_iocsh.cli:main"
 
 [tool.setuptools]
 packages = [ "run_iocsh" ]
+
+[tool.setuptools_scm]
+# PyPI rejects the `+g<sha>` the default scheme appends to untagged builds.
+local_scheme = "no-local-version"
+# Tags have no `v` prefix.
+git_describe_command = [
+  "git",
+  "describe",
+  "--dirty",
+  "--tags",
+  "--long",
+  "--match",
+  "[0-9]*.[0-9]*.[0-9]*",
+]
 
 [tool.ruff]
 target-version = "py311"
