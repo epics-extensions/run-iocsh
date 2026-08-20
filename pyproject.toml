@@ -2,12 +2,12 @@
 build-backend = "setuptools.build_meta"
 requires = [
   "setuptools>=77",
+  "setuptools-scm>=8",
   "wheel",
 ]
 
 [project]
 name = "run-iocsh"
-version = "3.1.0"
 description = "Wrapper to test IOCs"
 readme = { file = "README.rst", content-type = "text/x-rst" }
 keywords = [ "e3", "epics", "ess", "iocsh" ]
@@ -36,6 +36,7 @@ classifiers = [
   "Programming Language :: Python :: 3.13",
   "Programming Language :: Python :: 3.14",
 ]
+dynamic = [ "version" ]
 optional-dependencies.dev = [
   "coverage",
   "pytest",
@@ -55,6 +56,20 @@ scripts.run-iocsh = "run_iocsh.cli:main"
 
 [tool.setuptools]
 packages = [ "run_iocsh" ]
+
+[tool.setuptools_scm]
+# PyPI rejects the `+g<sha>` the default scheme appends to untagged builds.
+local_scheme = "no-local-version"
+# Tags have no `v` prefix.
+git_describe_command = [
+  "git",
+  "describe",
+  "--dirty",
+  "--tags",
+  "--long",
+  "--match",
+  "[0-9]*.[0-9]*.[0-9]*",
+]
 
 [tool.ruff]
 target-version = "py311"
