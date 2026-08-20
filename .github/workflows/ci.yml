@@ -39,9 +39,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0  # Sonar assigns new code by blame and needs the history
       - uses: actions/setup-python@v7
         with:
           python-version: "3.11"
       - run: pip install ".[dev]"
       - run: coverage run -m pytest -v tests
       - run: coverage report -m
+      - run: coverage xml
+      # Secrets are withheld from pull requests raised from a fork
+      - uses: SonarSource/sonarqube-scan-action@22918119ff8e1ca75a623e15c8296b6ea4fbe28f  # v8.2.1
+        if: ${{ !github.event.pull_request.head.repo.fork }}
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
