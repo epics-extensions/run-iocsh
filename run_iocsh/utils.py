@@ -38,7 +38,7 @@ def wait_for(
         try:
             if predicate():
                 return
-        except Exception:  # noqa: BLE001
+        except Exception:
             log.debug("wait_for: predicate raised, treating as False", exc_info=True)
         if deadline is not None and time.monotonic() >= deadline:
             raise IocshTimeoutError(f"Timed out after {timeout}s waiting for predicate")

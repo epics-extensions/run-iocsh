@@ -29,8 +29,10 @@ def lewis_device():
             "emulator",
             "modbus_device",
             "-p",
-            f"modbus: {{port: {SIMULATOR_PORT}, "
-            f"bind_address: '{SIMULATOR_BIND_ADDRESS}'}}",
+            (
+                f"modbus: {{port: {SIMULATOR_PORT}, "
+                f"bind_address: '{SIMULATOR_BIND_ADDRESS}'}}"
+            ),
         ],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,

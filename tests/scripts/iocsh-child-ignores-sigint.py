@@ -14,8 +14,10 @@ child = subprocess.Popen(
     [
         sys.executable,
         "-c",
-        "import signal, time; signal.signal(signal.SIGINT, signal.SIG_IGN); "
-        "time.sleep(60)",
+        (
+            "import signal, time; signal.signal(signal.SIGINT, signal.SIG_IGN); "
+            "time.sleep(60)"
+        ),
     ]
 )
 print(f"GRANDCHILD_PID={child.pid}", flush=True)
