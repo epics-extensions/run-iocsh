@@ -5,6 +5,9 @@
     ":semanticCommitsDisabled"
   ],
   "minimumReleaseAge": "3 days",
+  "poetry": {
+    "enabled": false
+  },
   "pre-commit": {
     "enabled": true
   },
