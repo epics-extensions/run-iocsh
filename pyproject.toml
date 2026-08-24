@@ -1,10 +1,6 @@
 [build-system]
 build-backend = "setuptools.build_meta"
-requires = [
-  "setuptools>=77",
-  "setuptools-scm>=8",
-  "wheel",
-]
+requires = [ "setuptools>=77", "setuptools-scm>=8" ]
 
 [project]
 name = "run-iocsh"
@@ -76,6 +72,7 @@ target-version = "py311"
 lint.select = [ "ALL" ]
 lint.ignore = [
   "COM812",
+  "CPY001", # copyright notices; licence is the repo LICENSE
   "D105",   # docstrings for magic methods
   "D107",   # docstrings for __init__ methods
   "D203",   # incompatibility between ruff lint and ruff format
@@ -96,6 +93,7 @@ lint.per-file-ignores."examples/**" = [
   "DTZ",     # timezone-naive datetime
   "INP001",  # packages missing __init__.py
   "PLR0913", # parametrized tests take many fixtures plus params
+  "PLR0917", # same for positional-argument count
   "PLR2004", # magic values
   "S101",    # asserts
   "S607",    # partial executable path (the lewis simulator)
