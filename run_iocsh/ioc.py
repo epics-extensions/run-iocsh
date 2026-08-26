@@ -35,10 +35,10 @@ log = logging.getLogger(__name__)
 
 RE_ANSI_SGR = re.compile(r"\x1b\[[0-9;]*m")
 RE_MODULE_NOT_AVAILABLE = re.compile(r"Error loading module:? (\S+?)\.?$", re.MULTILINE)
-RE_CANT_OPEN = re.compile(r"[Cc]an't\s*open\s*(.*?):")
+RE_CANT_OPEN = re.compile(r"[Cc]an't open ([^\n:]+):")
 RE_DOES_NOT_EXIST = re.compile(r"File (.*) does not exist")
 RE_MISSING_SHARED_LIB = re.compile(r"(lib.*): cannot open shared object file")
-RE_MISSING_DYLIB = re.compile(r"dlopen\((lib[^,)]+)[^)]*\): tried:")
+RE_MISSING_DYLIB = re.compile(r"dlopen\((lib[^,)]+),[^)]*\): tried:")
 RE_BUILTIN_FAIL_ON = r"^ERROR"
 DEFAULT_FAIL_ON: tuple[str, ...] = (RE_BUILTIN_FAIL_ON,)
 
@@ -530,38 +530,53 @@ class IOC:
             if compiled.search(self.output):
                 return
 
-            if not self.is_running():
-                self._join_reader_threads()
-                if compiled.search(self.output):
-                    return
-                # The IOC died before the pattern appeared. If the output names
-                # a cause, raise that; otherwise fall through to the generic
-                # startup error.
-                self._raise_for_reported_error(self._detectors)
-                raise IocshStartupError(
-                    f"IOC exited (rc={self.proc.returncode}) before pattern "
-                    f"{pattern!r} appeared.\n"
-                    f"output (last {TAIL_CHARS} chars):\n{self.output[-TAIL_CHARS:]}"
-                )
+            if self._exited_with_pattern(compiled, pattern):
+                return
 
             if deadline is not None and time.monotonic() >= deadline:
                 # The liveness check above ran this same iteration, so what is
                 # missing is the line, not the process.
-                hint = " The IOC is still running."
-                if pattern == DEFAULT_INIT_PATTERN:
-                    # An IOC started with require's --no-init, or deadlocked in
-                    # asInit, never reaches iocInit and can only time out here.
-                    hint += (
-                        " Pass wait_for_init=False (--no-wait-for-init) for an"
-                        " IOC that does not reach iocInit."
-                    )
-                raise IocshTimeoutError(
-                    f"Timed out after {timeout}s waiting for {pattern!r}."
-                    f"{hint}\n"
-                    f"output (last {TAIL_CHARS} chars):\n{self.output[-TAIL_CHARS:]}"
-                )
+                self._raise_wait_timeout(pattern, timeout)
 
             time.sleep(poll_interval)
+
+    def _exited_with_pattern(self, compiled: re.Pattern[str], pattern: str) -> bool:
+        """Return True if the IOC has exited and ``pattern`` is in the output.
+
+        Returns False while the process is still running. Raises if it has
+        exited without the pattern — as the recognised cause when a detector
+        matches, else a startup error.
+        """
+        if self.is_running():
+            return False
+        self._join_reader_threads()
+        if compiled.search(self.output):
+            return True
+        # The IOC died before the pattern appeared. If the output names
+        # a cause, raise that; otherwise fall through to the generic
+        # startup error.
+        self._raise_for_reported_error(self._detectors)
+        raise IocshStartupError(
+            f"IOC exited (rc={self.proc.returncode}) before pattern "
+            f"{pattern!r} appeared.\n"
+            f"output (last {TAIL_CHARS} chars):\n{self.output[-TAIL_CHARS:]}"
+        )
+
+    def _raise_wait_timeout(self, pattern: str, timeout: float | None) -> None:
+        """Raise ``IocshTimeoutError`` for an expired ``wait_for_output``."""
+        hint = " The IOC is still running."
+        if pattern == DEFAULT_INIT_PATTERN:
+            # An IOC started with require's --no-init, or deadlocked in
+            # asInit, never reaches iocInit and can only time out here.
+            hint += (
+                " Pass wait_for_init=False (--no-wait-for-init) for an"
+                " IOC that does not reach iocInit."
+            )
+        raise IocshTimeoutError(
+            f"Timed out after {timeout}s waiting for {pattern!r}."
+            f"{hint}\n"
+            f"output (last {TAIL_CHARS} chars):\n{self.output[-TAIL_CHARS:]}"
+        )
 
     def check_output(
         self,
