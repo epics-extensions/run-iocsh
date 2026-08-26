@@ -566,8 +566,7 @@ class IOC:
         # asInit, never reaches iocInit and can only time out here.
         raise IocshTimeoutError(
             f"Timed out after {timeout}s waiting for {pattern!r}. "
-            f"The process was still running when the wait expired.\n"
-            f"output (last {TAIL_CHARS} chars):\n{self.output[-TAIL_CHARS:]}"
+            f"The process was still running when the wait expired."
         )
 
     def check_output(

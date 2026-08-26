@@ -449,13 +449,7 @@ class TestWaitForOutput:
                 ioc.wait_for_output(timeout=0.3)
         assert "still running when the wait expired" in str(excinfo.value)
         assert "wait_for_init" not in str(excinfo.value)
-
-    def test_timeout_reports_the_output_it_did_see(self) -> None:
-        script = str(SCRIPTS / "iocsh-no-init.py")
-        with pytest.raises(IocshTimeoutError) as excinfo:
-            with IOC(executable=script) as ioc:
-                ioc.wait_for_output(timeout=0.3)
-        assert "Starting e3 IOC shell" in str(excinfo.value)
+        assert "output (last" not in str(excinfo.value)
 
     def test_timeout_on_a_custom_pattern_keeps_iocinit_out_of_it(self) -> None:
         # This IOC reached iocInit; a later signal is what is missing, so
@@ -466,6 +460,7 @@ class TestWaitForOutput:
                 ioc.wait_for_output(pattern="WILL_NOT_APPEAR", timeout=0.1)
         assert "still running when the wait expired" in str(excinfo.value)
         assert "wait_for_init" not in str(excinfo.value)
+        assert "output (last" not in str(excinfo.value)
 
     def test_detected_error_beats_a_later_exit_timeout(self) -> None:
         # The IOC logged a real error and then ignored exit. The error is the

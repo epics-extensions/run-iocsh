@@ -181,9 +181,10 @@ recognised, `IocshStartupError` is raised with the last 500 characters of the
 output.
 
 If the timeout expires while the process is still running, raises
-`IocshTimeoutError`, also with the last 500 characters of the output. The
-message states that the process was still running when the wait expired. An
-IOC started with require's `--no-init`, or one deadlocked in `asInit`, never
+`IocshTimeoutError`. The message states that the process was still running when
+the wait expired; unlike a startup or process failure, it does not dump the
+captured output, which is usually only early boot noise at that point. An IOC
+started with require's `--no-init`, or one deadlocked in `asInit`, never
 reaches `iocInit` and can only time out here.
 
 `timeout=None` waits forever and `timeout=0` checks the buffered output once
