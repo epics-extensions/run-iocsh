@@ -38,7 +38,7 @@ RE_MODULE_NOT_AVAILABLE = re.compile(r"Error loading module:? (\S+?)\.?$", re.MU
 RE_CANT_OPEN = re.compile(r"[Cc]an't open ([^\n:]+):")
 RE_DOES_NOT_EXIST = re.compile(r"File (.*) does not exist")
 RE_MISSING_SHARED_LIB = re.compile(r"(lib.*): cannot open shared object file")
-RE_MISSING_DYLIB = re.compile(r"dlopen\((lib[^,)]+)[^)]*\): tried:")
+RE_MISSING_DYLIB = re.compile(r"dlopen\((lib[^,)]+),[^)]*\): tried:")
 RE_BUILTIN_FAIL_ON = r"^ERROR"
 DEFAULT_FAIL_ON: tuple[str, ...] = (RE_BUILTIN_FAIL_ON,)
 
