@@ -35,7 +35,7 @@ log = logging.getLogger(__name__)
 
 RE_ANSI_SGR = re.compile(r"\x1b\[[0-9;]*m")
 RE_MODULE_NOT_AVAILABLE = re.compile(r"Error loading module:? (\S+?)\.?$", re.MULTILINE)
-RE_CANT_OPEN = re.compile(r"[Cc]an't\s*open\s*(.*?):")
+RE_CANT_OPEN = re.compile(r"[Cc]an't open ([^\n:]+):")
 RE_DOES_NOT_EXIST = re.compile(r"File (.*) does not exist")
 RE_MISSING_SHARED_LIB = re.compile(r"(lib.*): cannot open shared object file")
 RE_MISSING_DYLIB = re.compile(r"dlopen\((lib[^,)]+)[^)]*\): tried:")
