@@ -180,10 +180,10 @@ reported as itself — a missing module raises
 recognised, `IocshStartupError` is raised with the last 500 characters of the
 output.
 
-If the timeout expires while the IOC is still running, raises
-`IocshTimeoutError`, also with the last 500 characters of the output. For the
-default readiness pattern the message names `wait_for_init=False`: an IOC
-started with require's `--no-init`, or one deadlocked in `asInit`, never
+If the timeout expires while the process is still running, raises
+`IocshTimeoutError`, also with the last 500 characters of the output. The
+message states that the process was still running when the wait expired. An
+IOC started with require's `--no-init`, or one deadlocked in `asInit`, never
 reaches `iocInit` and can only time out here.
 
 `timeout=None` waits forever and `timeout=0` checks the buffered output once
