@@ -436,23 +436,20 @@ class TestWaitForOutput:
             with IOC(executable=script, exit_timeout=0.3) as ioc:
                 ioc.wait_for_output(pattern="WILL_NOT_APPEAR", timeout=0.1)
 
-    def test_timeout_on_readiness_points_at_the_no_init_switch(self) -> None:
+    def test_timeout_on_readiness_reports_the_process_was_still_running(
+        self,
+    ) -> None:
         # An IOC started with --no-init never reaches iocInit, so the readiness
-        # wait can only time out. Nothing is broken, and the message should say
-        # what to do rather than read like a crash.
+        # wait can only time out. The message should say the process was alive
+        # when the wait expired, without pointing at wait_for_init=False -- that
+        # is the wrong fix for a slow or stuck startup that uses the same path.
         script = str(SCRIPTS / "iocsh-no-init.py")
         with pytest.raises(IocshTimeoutError) as excinfo:
             with IOC(executable=script) as ioc:
                 ioc.wait_for_output(timeout=0.3)
-        assert "still running" in str(excinfo.value)
-        assert "wait_for_init=False" in str(excinfo.value)
-
-    def test_timeout_reports_the_output_it_did_see(self) -> None:
-        script = str(SCRIPTS / "iocsh-no-init.py")
-        with pytest.raises(IocshTimeoutError) as excinfo:
-            with IOC(executable=script) as ioc:
-                ioc.wait_for_output(timeout=0.3)
-        assert "Starting e3 IOC shell" in str(excinfo.value)
+        assert "still running when the wait expired" in str(excinfo.value)
+        assert "wait_for_init" not in str(excinfo.value)
+        assert "output (last" not in str(excinfo.value)
 
     def test_timeout_on_a_custom_pattern_keeps_iocinit_out_of_it(self) -> None:
         # This IOC reached iocInit; a later signal is what is missing, so
@@ -461,8 +458,9 @@ class TestWaitForOutput:
         with pytest.raises(IocshTimeoutError) as excinfo:
             with IOC(executable=script, exit_timeout=0.3) as ioc:
                 ioc.wait_for_output(pattern="WILL_NOT_APPEAR", timeout=0.1)
-        assert "still running" in str(excinfo.value)
+        assert "still running when the wait expired" in str(excinfo.value)
         assert "wait_for_init" not in str(excinfo.value)
+        assert "output (last" not in str(excinfo.value)
 
     def test_detected_error_beats_a_later_exit_timeout(self) -> None:
         # The IOC logged a real error and then ignored exit. The error is the

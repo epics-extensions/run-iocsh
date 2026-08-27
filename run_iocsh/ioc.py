@@ -513,10 +513,8 @@ class IOC:
         Raises:
             IocshStateError: If called before the process has started.
             IocshStartupError: If the IOC exits before the pattern appears.
-            IocshTimeoutError: If ``timeout`` expires while the IOC is still
-                running. For the readiness pattern the message names
-                ``wait_for_init=False``, since an IOC that never reaches
-                iocInit cannot pass this wait.
+            IocshTimeoutError: If ``timeout`` expires while the process is
+                still running.
         """
         if self.state is not IOC.State.STARTED:
             raise IocshStateError("wait_for_output() called before start()")
@@ -564,18 +562,11 @@ class IOC:
 
     def _raise_wait_timeout(self, pattern: str, timeout: float | None) -> None:
         """Raise ``IocshTimeoutError`` for an expired ``wait_for_output``."""
-        hint = " The IOC is still running."
-        if pattern == DEFAULT_INIT_PATTERN:
-            # An IOC started with require's --no-init, or deadlocked in
-            # asInit, never reaches iocInit and can only time out here.
-            hint += (
-                " Pass wait_for_init=False (--no-wait-for-init) for an"
-                " IOC that does not reach iocInit."
-            )
+        # An IOC started with require's --no-init, or deadlocked in
+        # asInit, never reaches iocInit and can only time out here.
         raise IocshTimeoutError(
-            f"Timed out after {timeout}s waiting for {pattern!r}."
-            f"{hint}\n"
-            f"output (last {TAIL_CHARS} chars):\n{self.output[-TAIL_CHARS:]}"
+            f"Timed out after {timeout}s waiting for {pattern!r}. "
+            f"The process was still running when the wait expired."
         )
 
     def check_output(
