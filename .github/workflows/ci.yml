@@ -18,7 +18,7 @@ jobs:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v7
         with:
-          python-version: "3.11"
+          python-version: "3.14"
       - uses: pre-commit/action@v3.0.1
 
   test:
@@ -43,7 +43,7 @@ jobs:
           fetch-depth: 0  # Sonar assigns new code by blame and needs the history
       - uses: actions/setup-python@v7
         with:
-          python-version: "3.11"
+          python-version: "3.14"
       - run: pip install ".[dev]"
       - run: coverage run -m pytest -v tests
       - run: coverage report -m
