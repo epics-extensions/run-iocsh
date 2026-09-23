@@ -1,6 +1,6 @@
 repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.16.7
+    rev: v0.16.8
     hooks:
       - id: ruff-check
         args: [ --fix ]
@@ -17,6 +17,6 @@ repos:
     hooks:
     - id: pyproject-fmt
   - repo: https://github.com/jackdewinter/pymarkdown
-    rev: v0.9.39
+    rev: v0.9.40
     hooks:
       - id: pymarkdown
